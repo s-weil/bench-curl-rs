@@ -51,15 +51,6 @@ impl BenchClient {
         request: &reqwest::blocking::RequestBuilder,
         stats_collector: &mut StatsCollector,
     ) {
-        // let mut request = match self.input.method {
-        //     parameter::Method::GET => self.client.get(&self.input.url),
-        //     _ => todo!("other methods"),
-        // };
-
-        // if let Some(token) = &self.input.bearer_token {
-        //     request = request.bearer_auth(token);
-        // }
-
         // start the timing once the request is ready to go
         let start = Instant::now();
         let response = request.try_clone().unwrap().send().unwrap(); // TODO: how to handle?

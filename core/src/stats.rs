@@ -1,6 +1,10 @@
 use crate::parameter::DurationUnit;
 use reqwest::blocking::Response;
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Display},
+    time::Duration,
+};
 
 impl DurationUnit {
     fn elapsed(&self, duration: &Duration) -> f64 {
@@ -97,6 +101,15 @@ pub struct Stats {
     pub distribution: Vec<f64>,
     pub n_ok: usize,
     pub n_errors: usize, // TODO: provide overview of errors - tbd if actually interestering or a corner case
+}
+
+impl Display for Stats {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SUMMARY")?;
+        write!(f, "Total Duration: {}", self.total)?;
+        write!(f, "Mean: {}", self.mean)
+        // TOOD: and others; plot distribution on console
+    }
 }
 
 impl Stats {
