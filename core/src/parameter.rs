@@ -26,7 +26,7 @@ pub enum Method {
 // TODO: structure into sub types
 #[derive(Deserialize, Debug, Default)]
 
-pub struct BenchInput {
+pub struct BenchConfig {
     pub url: String,
     pub method: Method,
     headers: Option<String>, // TODO: make a KV collection
@@ -58,7 +58,7 @@ pub struct BenchInput {
     // json_payloads: Option<Vec<String>>,
 }
 
-impl BenchInput {
+impl BenchConfig {
     pub fn new(url: String) -> Self {
         Self {
             url,

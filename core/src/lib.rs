@@ -8,16 +8,16 @@ use reqwest::*;
 use stats::{Stats, StatsCollector};
 use std::time::Instant;
 
-pub use parameter::BenchInput;
+pub use parameter::BenchConfig;
 pub use plots::plot;
 
 pub struct BenchClient {
     client: blocking::Client,
-    input: BenchInput,
+    input: BenchConfig,
 }
 
 impl BenchClient {
-    pub fn init(input: BenchInput) -> Result<Self> {
+    pub fn init(input: BenchConfig) -> Result<Self> {
         let client = reqwest::blocking::ClientBuilder::new().build()?;
         Ok(Self { input, client })
     }
