@@ -66,7 +66,7 @@ impl BenchClient {
     }
 
     pub fn start_run(&self) {
-        let du = self.input.duration_unit().clone();
+        let du = self.input.duration_unit();
 
         let n_runs = self.input.n_runs();
         let mut stats_collector = StatsCollector::init(n_runs, du);

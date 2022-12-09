@@ -45,7 +45,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     // let specs = ...
     match args.cmd {
         BenchRunnerArg::FromToml => {
-            let file_name = args.file_name.clone().unwrap_or("specs.toml".to_string());
+            let file_name = args
+                .file_name
+                .clone()
+                .unwrap_or_else(|| "specs.toml".to_string());
 
             if let Some(specs) = parse_toml(&file_name) {
                 dbg!(specs);

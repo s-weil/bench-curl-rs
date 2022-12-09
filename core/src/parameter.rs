@@ -1,6 +1,3 @@
-use std::default;
-
-use reqwest::header;
 use serde::Deserialize;
 
 #[derive(Default, Deserialize, Debug, Clone)]

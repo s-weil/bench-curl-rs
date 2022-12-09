@@ -1,6 +1,5 @@
 use core::BenchInput;
 use std::fs;
-use toml;
 
 // TODO: convert to result
 pub fn parse_toml(file_name: &str) -> Option<BenchInput> {
