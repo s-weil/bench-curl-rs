@@ -5,6 +5,8 @@ extern crate clap;
 
 use clap::{Parser, Subcommand};
 use core::BenchClient;
+use env_logger::Env;
+use log::{error, info, trace};
 use std::error::Error;
 
 use crate::parser::parse_toml;
@@ -15,6 +17,8 @@ use crate::parser::parse_toml;
     * bench-curl-cli -- -f "./tests/specs.toml" from-toml
     * bench-curl-cli -- --url 'localhost:5000' get
 */
+
+const LOG_LEVEL: &str = "LOG_LEVEL";
 
 #[derive(Subcommand, Debug)]
 enum BenchRunnerArg {
@@ -39,8 +43,13 @@ struct CliArgs {
     url: Option<String>,
 }
 
-// TODO: add better logging
+// TODO: add better logging?
 fn main() -> Result<(), Box<dyn Error>> {
+    let log_level = "INFO".to_string(); // std::env::var(LOG_LEVEL).unwrap_or_default();
+    env_logger::Builder::from_env(Env::default().default_filter_or(&log_level)).init();
+
+    // env_logger::init();
+
     let args = CliArgs::parse();
 
     if let Some(specs) = match args.cmd {
@@ -51,9 +60,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .unwrap_or_else(|| "specs.toml".to_string());
 
             if let Some(specs) = parse_toml(&file_name) {
-                dbg!(specs);
+                info!("parsed specs {:?}", specs);
             } else {
-                print!("Unable to parse the specifications");
+                error!("Unable to parse the specifications");
             }
             None
         }
@@ -61,18 +70,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         BenchRunnerArg::Get => {
             if let Some(url) = args.url.clone() {
                 let specs = core::BenchInput::from_get_url(url);
-                dbg!(specs);
+                info!("parsed specs {:?}", specs);
             } else {
-                print!("URL parameter required.");
+                error!("URL parameter required.");
             }
             None
         }
     } {
         let bencher = BenchClient::init(specs)?;
         if let Some(stats) = bencher.start_run() {
-            println!("SUMMARY: {:?}", stats);
+            info!("SUMMARY: {:?}", stats);
         }
     }
-    print!("{:?}", args);
+    info!("{:?}", args);
     Ok(())
 }
