@@ -1,14 +1,6 @@
+use crate::parameter::DurationUnit;
 use reqwest::blocking::Response;
-use serde::Deserialize;
 use std::{collections::HashMap, time::Duration};
-
-#[derive(Default, Deserialize, Debug, Clone)]
-pub enum DurationUnit {
-    Nano,
-    #[default]
-    Micro,
-    Milli,
-}
 
 impl DurationUnit {
     fn elapsed(&self, duration: &Duration) -> f64 {

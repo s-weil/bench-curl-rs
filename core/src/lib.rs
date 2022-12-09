@@ -1,9 +1,12 @@
+mod parameter;
 mod stats;
 
+use crate::parameter::ConcurrenyLevel;
 use reqwest::*;
-use serde::{Deserialize, Serialize};
-use stats::{DurationUnit, StatsCollector};
+use stats::StatsCollector;
 use std::time::Instant;
+
+pub use parameter::BenchInput;
 
 /*
     TODO:
@@ -18,58 +21,6 @@ use std::time::Instant;
         * input randomizer
         * unit test for stats
 */
-
-#[derive(Default, Debug, Deserialize)]
-pub enum ConcurrenyLevel {
-    #[default]
-    Sequential,
-    /// Concurrency level
-    Concurrent(usize),
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum Method {
-    GET,
-    POST,
-}
-
-#[derive(Deserialize, Debug)]
-
-pub struct BenchInput {
-    url: String,
-    method: Method,
-    headers: Option<String>, // TODO: make a KV collection
-    #[serde(rename = "jsonPayload")]
-    json_payload: Option<String>,
-    #[serde(rename = "bearerToken")]
-    bearer_token: Option<String>,
-
-    #[serde(rename = "durationUnit")]
-    duration_unit: Option<DurationUnit>,
-
-    #[serde(rename = "numberRuns")]
-    n_runs: Option<usize>,
-
-    #[serde(rename = "concurrencyLevel")]
-    concurrency_level: Option<usize>,
-    // TODO:
-    // * output path for results etc
-    // * randomized requests / vec of payloads
-    // * logging param with level?
-}
-
-impl BenchInput {
-    fn n_runs(&self) -> usize {
-        self.n_runs.unwrap_or(100).min(0)
-    }
-
-    fn concurrency_level(&self) -> ConcurrenyLevel {
-        match self.concurrency_level {
-            Some(level) if level > 1 => ConcurrenyLevel::Concurrent(level),
-            _ => ConcurrenyLevel::Sequential,
-        }
-    }
-}
 
 pub struct BenchClient {
     client: blocking::Client,
@@ -96,7 +47,7 @@ impl BenchClient {
     // }calculate
     fn request(&self, stats_collector: &mut StatsCollector) {
         let mut request = match self.input.method {
-            Method::GET => self.client.get(&self.input.url),
+            parameter::Method::GET => self.client.get(&self.input.url),
             _ => todo!("other methods"),
         };
 
@@ -115,10 +66,10 @@ impl BenchClient {
     }
 
     pub fn start_run(&self) {
-        let du = self.input.duration_unit.clone();
+        let du = self.input.duration_unit().clone();
 
         let n_runs = self.input.n_runs();
-        let mut stats_collector = StatsCollector::init(n_runs, du.unwrap_or_default());
+        let mut stats_collector = StatsCollector::init(n_runs, du);
 
         match self.input.concurrency_level() {
             ConcurrenyLevel::Sequential => {
