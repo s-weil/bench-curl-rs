@@ -19,6 +19,7 @@ use crate::parser::{from_get_url, parse_toml};
 */
 
 const LOG_LEVEL: &str = "LOG_LEVEL";
+const DEFAULT_LEVEL: &str = "INFO";
 
 #[derive(Subcommand, Debug)]
 enum BenchRunnerArg {
@@ -45,7 +46,7 @@ struct CliArgs {
 
 // TODO: add better logging?
 fn main() -> Result<(), Box<dyn Error>> {
-    let log_level = "INFO".to_string(); // std::env::var(LOG_LEVEL).unwrap_or_default();
+    let log_level = std::env::var(LOG_LEVEL).unwrap_or(DEFAULT_LEVEL.to_string());
     env_logger::Builder::from_env(Env::default().default_filter_or(&log_level)).init();
 
     // env_logger::init();
@@ -54,32 +55,37 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     if let Some(specs) = match args.cmd {
         BenchRunnerArg::FromToml => {
+            info!("Parsing TOML");
             let file_name = args
                 .file_name
                 .clone()
                 .unwrap_or_else(|| "specs.toml".to_string());
 
-            if let Some(specs) = parse_toml(&file_name) {
-                info!("parsed specs {:?}", specs);
-            } else {
+            info!("{:?}", &file_name);
+
+            let specs = parse_toml(&file_name);
+            if let None = specs {
                 error!("Unable to parse the specifications");
             }
-            None
+            specs
         }
 
         BenchRunnerArg::Get => {
+            info!("GET");
             if let Some(url) = args.url.clone() {
-                let specs = from_get_url(url);
-                info!("parsed specs {:?}", specs);
+                Some(from_get_url(url))
             } else {
                 error!("URL parameter required.");
+                None
             }
-            None
         }
     } {
+        info!("initializing runner with {:?}", &specs);
+        let unit = specs.duration_unit();
+
         let bencher = BenchClient::init(specs)?;
         if let Some(stats) = bencher.start_run() {
-            info!("SUMMARY: {:?}", stats);
+            info!("SUMMARY: [in {:?}Secs] {:?}", unit, stats);
         }
     }
     info!("{:?}", args);

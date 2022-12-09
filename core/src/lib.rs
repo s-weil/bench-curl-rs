@@ -19,7 +19,7 @@ pub use parameter::BenchInput;
         * rayon support
         * parallel via rayon?
         * input randomizer
-        * unit test for stats
+        * functionality for A/B testing
 */
 
 pub struct BenchClient {
@@ -48,16 +48,24 @@ impl BenchClient {
 
     fn timed_request(
         &self,
-        request: &reqwest::blocking::RequestBuilder,
+        // request: &reqwest::blocking::RequestBuilder,
         stats_collector: &mut StatsCollector,
     ) {
-        // start the timing once the request is ready to go
+        // TODO: reuse the request
+        let request = self.assemble_request();
+        // let response = request.try_clone().unwrap();
         let start = Instant::now();
-        let response = request.try_clone().unwrap().send().unwrap(); // TODO: how to handle?
 
-        // TODO: better way of measuring the time?
-        let duration = start.elapsed();
-        stats_collector.add(response, duration);
+        match request.send() {
+            Ok(response) => {
+                // TODO: better way of measuring the time?
+                let duration = start.elapsed();
+                stats_collector.add(response, duration);
+            }
+            Err(error) => {
+                println!("{:?}", error);
+            }
+        }
     }
 
     pub fn start_run(&self) -> Option<Stats> {
@@ -71,13 +79,14 @@ impl BenchClient {
         match self.input.concurrency_level() {
             ConcurrenyLevel::Sequential => {
                 for _ in 0..self.input.warmup_runs() {
-                    println!("Warum up run");
+                    // Trigger a first few requests, possibly to populate a cache or similiar
+                    println!("Warm up run");
                     let _ = request.try_clone().unwrap().send().unwrap();
                     // TODO: how to handle?
                 }
-                println!("Starting measurment of {} samples", n_runs);
+                println!("Starting measurement of {} samples", n_runs);
                 for _ in 0..n_runs {
-                    self.timed_request(&request, &mut stats_collector);
+                    self.timed_request(&mut stats_collector);
                 }
             }
             ConcurrenyLevel::Concurrent(_level) => {
