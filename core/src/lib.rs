@@ -51,13 +51,19 @@ impl BenchClient {
         request: &reqwest::blocking::RequestBuilder,
         stats_collector: &mut StatsCollector,
     ) {
-        // start the timing once the request is ready to go
         let start = Instant::now();
-        let response = request.try_clone().unwrap().send().unwrap(); // TODO: how to handle?
+        let response = request.try_clone().unwrap().send(); // TODO: how to handle?
 
-        // TODO: better way of measuring the time?
-        let duration = start.elapsed();
-        stats_collector.add(response, duration);
+        match response {
+            Ok(response) => {
+                // TODO: better way of measuring the time?
+                let duration = start.elapsed();
+                stats_collector.add(response, duration);
+            }
+            Err(error) => {
+                println!("{:?}", error);
+            }
+        }
     }
 
     pub fn start_run(&self) -> Option<Stats> {
@@ -71,11 +77,12 @@ impl BenchClient {
         match self.input.concurrency_level() {
             ConcurrenyLevel::Sequential => {
                 for _ in 0..self.input.warmup_runs() {
-                    println!("Warum up run");
+                    // Trigger a first few requests, possibly to populate a cache or similiar
+                    println!("Warm up run");
                     let _ = request.try_clone().unwrap().send().unwrap();
                     // TODO: how to handle?
                 }
-                println!("Starting measurment of {} samples", n_runs);
+                println!("Starting measurement of {} samples", n_runs);
                 for _ in 0..n_runs {
                     self.timed_request(&request, &mut stats_collector);
                 }

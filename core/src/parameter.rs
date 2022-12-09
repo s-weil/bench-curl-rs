@@ -23,6 +23,7 @@ pub enum Method {
     POST,
 }
 
+// TODO: structure into sub types
 #[derive(Deserialize, Debug, Default)]
 
 pub struct BenchInput {
@@ -34,18 +35,18 @@ pub struct BenchInput {
     #[serde(rename = "gqlQuery")]
     gql_query: Option<String>,
 
-    #[serde(rename = "bearerToken")]
+    // #[serde(rename = "bearerToken")]
     pub bearer_token: Option<String>,
 
-    #[serde(rename = "durationUnit")]
+    // #[serde(rename = "durationUnit")]
     duration_unit: Option<DurationUnit>,
 
-    #[serde(rename = "numberRuns")]
+    // #[serde(rename = "numberRuns")]
     n_runs: Option<usize>,
-    #[serde(rename = "numberWarmupRuns")]
+    // #[serde(rename = "numberWarmupRuns")]
     n_warmup_runs: Option<usize>,
 
-    #[serde(rename = "concurrencyLevel")]
+    // #[serde(rename = "concurrencyLevel")]
     concurrency_level: Option<usize>,
     // TODO:
     // * output path for results etc
