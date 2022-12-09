@@ -1,0 +1,17 @@
+###--- REQUIRED PARAMS ----
+url = "localhost:5000/health"
+
+## --- GET
+method = "GET"
+
+## --- POST
+# method = "POST"
+# json_payload = "json"
+
+### --- OPTIONAL PARAMS ----
+## Auth
+# bearer_token = "1q2asdasd.asdasdasd.asd123e"
+
+## Run config
+# n_runs = 100 # the default
+# concurrency_level = 1 # the default

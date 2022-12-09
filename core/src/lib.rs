@@ -55,6 +55,7 @@ pub struct BenchInput {
     // TODO:
     // * output path for results etc
     // * randomized requests / vec of payloads
+    // * logging param with level?
 }
 
 impl BenchInput {
