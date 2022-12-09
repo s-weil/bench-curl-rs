@@ -3,7 +3,7 @@ mod stats;
 
 use crate::parameter::ConcurrenyLevel;
 use reqwest::*;
-use stats::StatsCollector;
+use stats::{Stats, StatsCollector};
 use std::time::Instant;
 
 pub use parameter::BenchInput;
@@ -65,7 +65,7 @@ impl BenchClient {
         stats_collector.add(response, duration);
     }
 
-    pub fn start_run(&self) {
+    pub fn start_run(&self) -> Option<Stats> {
         let du = self.input.duration_unit();
 
         let n_runs = self.input.n_runs();
@@ -84,7 +84,8 @@ impl BenchClient {
 
         let stats = stats_collector.collect();
 
-        // TODO: print and plot
-        println!("SUMMARY: {:?}", stats);
+        stats
+        // // TODO: print and plot
+        // println!("SUMMARY: {:?}", stats);
     }
 }

@@ -4,6 +4,7 @@ mod parser;
 extern crate clap;
 
 use clap::{Parser, Subcommand};
+use core::BenchClient;
 use std::error::Error;
 
 use crate::parser::parse_toml;
@@ -42,8 +43,7 @@ struct CliArgs {
 fn main() -> Result<(), Box<dyn Error>> {
     let args = CliArgs::parse();
 
-    // let specs = ...
-    match args.cmd {
+    if let Some(specs) = match args.cmd {
         BenchRunnerArg::FromToml => {
             let file_name = args
                 .file_name
@@ -55,6 +55,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             } else {
                 print!("Unable to parse the specifications");
             }
+            None
         }
 
         BenchRunnerArg::Get => {
@@ -64,6 +65,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             } else {
                 print!("URL parameter required.");
             }
+            None
+        }
+    } {
+        let bencher = BenchClient::init(specs)?;
+        if let Some(stats) = bencher.start_run() {
+            println!("SUMMARY: {:?}", stats);
         }
     }
     print!("{:?}", args);
