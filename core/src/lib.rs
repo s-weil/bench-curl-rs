@@ -51,12 +51,19 @@ impl BenchClient {
         // request: &reqwest::blocking::RequestBuilder,
         stats_collector: &mut StatsCollector,
     ) {
+<<<<<<< HEAD
         // TODO: reuse the request
         let request = self.assemble_request();
         // let response = request.try_clone().unwrap();
         let start = Instant::now();
 
         match request.send() {
+=======
+        let start = Instant::now();
+        let response = request.try_clone().unwrap().send(); // TODO: how to handle?
+
+        match response {
+>>>>>>> 940b69645795e647cc8c429f142f937211300d84
             Ok(response) => {
                 // TODO: better way of measuring the time?
                 let duration = start.elapsed();
