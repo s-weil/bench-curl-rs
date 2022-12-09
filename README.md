@@ -21,3 +21,4 @@ Statistics-driven benchmarking of http-webapp, in Rust.
 * kaleido support? https://github.com/igiagkiozis/plotly#exporting-an-interactive-plot
 * wasm support? https://github.com/igiagkiozis/plotly#exporting-an-interactive-plot
 * show also curve / timeseries
+* add request_id to request, so that it can be traced back potentially? tbd: could be responsibility of user
