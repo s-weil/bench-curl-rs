@@ -7,3 +7,7 @@ pub fn parse_toml(file_name: &str) -> Option<BenchInput> {
     let specs: BenchInput = toml::from_str(&file_content).ok()?;
     Some(specs)
 }
+
+pub fn from_get_url(url: String) -> BenchInput {
+    BenchInput::new(url)
+}

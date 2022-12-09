@@ -13,7 +13,7 @@ impl DurationUnit {
 }
 
 enum RequestResult {
-    /// Contains the status code.
+    /// Cont ains the status code.
     Failed(usize), // TODO: maybe add also durations here?
     /// Contains the duration of the request.
     Ok(Duration),
@@ -70,6 +70,20 @@ fn percentile(durations: &[f64], level: f64, n: f64) -> f64 {
     durations[idx]
 }
 
+fn standard_deviation(durations: &[f64], mean: f64) -> Option<f64> {
+    let len = durations.len();
+    if len <= 1 {
+        return None;
+    }
+    let squared_errors = durations.iter().fold(0.0, |acc, d| {
+        let error = (d - mean).powi(2);
+        acc + error
+    });
+
+    let std = squared_errors.sqrt() / len as f64;
+    Some(std)
+}
+
 #[derive(Debug)]
 pub struct Stats {
     pub total: f64,
@@ -77,8 +91,11 @@ pub struct Stats {
     pub median: f64,
     pub quartile_fst: f64,
     pub quartile_trd: f64,
+    pub std: Option<f64>,
+    // TODO: outliers
     // TODO: add buckets for histogramm and others instead
     pub distribution: Vec<f64>,
+    pub n_ok: usize,
     pub n_errors: usize, // TODO: provide overview of errors - tbd if actually interestering or a corner case
 }
 
@@ -111,6 +128,7 @@ impl Stats {
 
         let sum = sum(&durations);
         let mean = sum / (n as f64);
+        let std = standard_deviation(&durations, mean);
 
         // sort the durations for quantiles
         durations.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -122,10 +140,12 @@ impl Stats {
             total: sum,
             mean,
             median,
+            std,
             quartile_fst,
             quartile_trd,
             distribution: durations,
             n_errors,
+            n_ok: n - n_errors,
         })
     }
 }

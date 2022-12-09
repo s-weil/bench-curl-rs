@@ -44,7 +44,8 @@ impl BenchClient {
     //     }
 
     //     request
-    // }calculate
+    // }
+
     fn request(&self, stats_collector: &mut StatsCollector) {
         let mut request = match self.input.method {
             parameter::Method::GET => self.client.get(&self.input.url),
@@ -55,12 +56,11 @@ impl BenchClient {
             request = request.bearer_auth(token);
         }
 
-        // TOOD: use chrono and precisetime
-
         // start the timing once the request is ready to go
         let start = Instant::now();
         let response = request.send().unwrap(); // TODO: how to handle?
 
+        // TODO: better way of measuring the time?
         let duration = start.elapsed();
         stats_collector.add(response, duration);
     }
@@ -73,6 +73,10 @@ impl BenchClient {
 
         match self.input.concurrency_level() {
             ConcurrenyLevel::Sequential => {
+                for _ in 0..self.input.warmup_runs() {
+                    self.request(&mut stats_collector);
+                }
+                println!("Starting measurment of {} samples", n_runs);
                 for _ in 0..n_runs {
                     self.request(&mut stats_collector);
                 }

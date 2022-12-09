@@ -39,6 +39,8 @@ pub struct BenchInput {
 
     #[serde(rename = "numberRuns")]
     n_runs: Option<usize>,
+    #[serde(rename = "numberWarmupRuns")]
+    n_warmup_runs: Option<usize>,
 
     #[serde(rename = "concurrencyLevel")]
     concurrency_level: Option<usize>,
@@ -59,10 +61,9 @@ impl BenchInput {
     pub fn from_get_url(url: String) -> Self {
         Self::new(url)
     }
-    // pub fn from_toml(url: String) -> Self {}
 
     pub fn n_runs(&self) -> usize {
-        self.n_runs.unwrap_or(100).min(0)
+        self.n_runs.unwrap_or(100).max(0)
     }
 
     pub fn concurrency_level(&self) -> ConcurrenyLevel {
@@ -74,5 +75,9 @@ impl BenchInput {
 
     pub fn duration_unit(&self) -> DurationUnit {
         self.duration_unit.clone().unwrap_or_default()
+    }
+
+    pub fn warmup_runs(&self) -> usize {
+        self.n_warmup_runs.unwrap_or(0).max(0)
     }
 }

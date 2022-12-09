@@ -9,7 +9,7 @@ use env_logger::Env;
 use log::{error, info, trace};
 use std::error::Error;
 
-use crate::parser::parse_toml;
+use crate::parser::{from_get_url, parse_toml};
 
 /*
     Examples to run
@@ -69,7 +69,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         BenchRunnerArg::Get => {
             if let Some(url) = args.url.clone() {
-                let specs = core::BenchInput::from_get_url(url);
+                let specs = from_get_url(url);
                 info!("parsed specs {:?}", specs);
             } else {
                 error!("URL parameter required.");
