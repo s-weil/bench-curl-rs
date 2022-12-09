@@ -21,7 +21,7 @@ pub fn plot(stats: Stats, output_path: Option<String>) {
     // plot.add_trace(trace1);
 
     if let Some(path) = output_path {
-        plot.write_html("out.html");
+        // plot.write_html("out.html");
         // let file_name = path::Path::new(&path).join("histogram.html");
         // info!("saved plot to {:?}", file_name.as_os_str().to_str());
         // let filename = file_name.as_os_str().to_str().unwrap();
