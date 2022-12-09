@@ -48,6 +48,8 @@ pub struct BenchInput {
 
     // #[serde(rename = "concurrencyLevel")]
     concurrency_level: Option<usize>,
+
+    pub plot_folder: Option<String>,
     // TODO:
     // * output path for results etc
     // * randomized requests / vec of payloads

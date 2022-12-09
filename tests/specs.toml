@@ -1,12 +1,8 @@
 ###--- REQUIRED PARAMS ----
-<<<<<<< HEAD
 # url = "http://127.0.0.1:8000/ping" # fastapi
 # url = "http://127.0.0.1:8000/delayed/10" # fastapi
 url = "http://0.0.0.0:8080/ping" # actix
-# url = "http://0.0.0.0:8080/delayed/1" # actix
-=======
-url = "http://127.0.0.1:8000/health"
->>>>>>> 940b69645795e647cc8c429f142f937211300d84
+# url = "http://0.0.0.0:8080/delayed/10" # actix
 ## --- GET
 method = "GET"
 ## --- POST
@@ -16,12 +12,8 @@ method = "GET"
 ## Auth
 # bearer_token = "1q2asdasd.asdasdasd.asd123e"
 ## Run config
-<<<<<<< HEAD
 # n_runs = 100 # the default
 # concurrency_level = 1 # the default
 duration_unit = "Micro" # | Milli | Nano
-=======
-n_runs = 200 # the default
-# concurrency_level = 1 # the default
-duration_unit = "Micro"
->>>>>>> 940b69645795e647cc8c429f142f937211300d84
+# plot_output = "./tests/actix.html"
+plot_folder = "tests/fastapi"

@@ -1,12 +1,15 @@
 mod parameter;
+mod plots;
 mod stats;
 
 use crate::parameter::ConcurrenyLevel;
+use log::{error, info};
 use reqwest::*;
 use stats::{Stats, StatsCollector};
 use std::time::Instant;
 
 pub use parameter::BenchInput;
+pub use plots::plot;
 
 /*
     TODO:
@@ -18,8 +21,11 @@ pub use parameter::BenchInput;
         * tokio support (tbd)
         * rayon support
         * parallel via rayon?
-        * input randomizer
-        * functionality for A/B testing
+        * input randomizer (param to folder with json_payloads)
+        * functionality for A/B testing / testing different suites
+        * from json / yaml
+        * kaleido support? https://github.com/igiagkiozis/plotly#exporting-an-interactive-plot
+        * wasm support? https://github.com/igiagkiozis/plotly#exporting-an-interactive-plot
 */
 
 pub struct BenchClient {
@@ -51,26 +57,19 @@ impl BenchClient {
         // request: &reqwest::blocking::RequestBuilder,
         stats_collector: &mut StatsCollector,
     ) {
-<<<<<<< HEAD
         // TODO: reuse the request
         let request = self.assemble_request();
         // let response = request.try_clone().unwrap();
         let start = Instant::now();
 
         match request.send() {
-=======
-        let start = Instant::now();
-        let response = request.try_clone().unwrap().send(); // TODO: how to handle?
-
-        match response {
->>>>>>> 940b69645795e647cc8c429f142f937211300d84
             Ok(response) => {
                 // TODO: better way of measuring the time?
                 let duration = start.elapsed();
                 stats_collector.add(response, duration);
             }
             Err(error) => {
-                println!("{:?}", error);
+                error!("{:?}", error);
             }
         }
     }
@@ -81,17 +80,15 @@ impl BenchClient {
         let n_runs = self.input.n_runs();
         let mut stats_collector = StatsCollector::init(n_runs, du);
 
-        let request = self.assemble_request();
-
         match self.input.concurrency_level() {
             ConcurrenyLevel::Sequential => {
                 for _ in 0..self.input.warmup_runs() {
                     // Trigger a first few requests, possibly to populate a cache or similiar
-                    println!("Warm up run");
-                    let _ = request.try_clone().unwrap().send().unwrap();
+                    info!("Warm up run");
+                    let _ = self.assemble_request().try_clone().unwrap().send().unwrap();
                     // TODO: how to handle?
                 }
-                println!("Starting measurement of {} samples", n_runs);
+                info!("Starting measurement of {} samples", n_runs);
                 for _ in 0..n_runs {
                     self.timed_request(&mut stats_collector);
                 }
@@ -104,7 +101,5 @@ impl BenchClient {
         let stats = stats_collector.collect();
 
         stats
-        // // TODO: print and plot
-        // println!("SUMMARY: {:?}", stats);
     }
 }

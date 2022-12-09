@@ -83,11 +83,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         info!("initializing runner with {:?}", &specs);
         let unit = specs.duration_unit();
 
+        let dir = specs.plot_folder.clone();
         let bencher = BenchClient::init(specs)?;
         if let Some(stats) = bencher.start_run() {
             info!("SUMMARY: [in {:?}Secs] {:?}", unit, stats);
+            core::plot(stats, dir);
         }
     }
-    info!("{:?}", args);
+    info!("Finished");
     Ok(())
 }
