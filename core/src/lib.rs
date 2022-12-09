@@ -33,20 +33,7 @@ impl BenchClient {
         Ok(Self { input, client })
     }
 
-    // fn assemble_request(&self) -> reqwest::blocking::Request {
-    //     let mut request = match self.input.method {
-    //         Method::GET => self.client.get(&self.input.url),
-    //         _ => todo!("other methods"),
-    //     };
-
-    //     if let Some(token) = &self.input.bearer_token {
-    //         request = request.bearer_auth(token);
-    //     }
-
-    //     request
-    // }
-
-    fn request(&self, stats_collector: &mut StatsCollector) {
+    fn assemble_request(&self) -> reqwest::blocking::RequestBuilder {
         let mut request = match self.input.method {
             parameter::Method::GET => self.client.get(&self.input.url),
             _ => todo!("other methods"),
@@ -56,9 +43,26 @@ impl BenchClient {
             request = request.bearer_auth(token);
         }
 
+        request
+    }
+
+    fn timed_request(
+        &self,
+        request: &reqwest::blocking::RequestBuilder,
+        stats_collector: &mut StatsCollector,
+    ) {
+        // let mut request = match self.input.method {
+        //     parameter::Method::GET => self.client.get(&self.input.url),
+        //     _ => todo!("other methods"),
+        // };
+
+        // if let Some(token) = &self.input.bearer_token {
+        //     request = request.bearer_auth(token);
+        // }
+
         // start the timing once the request is ready to go
         let start = Instant::now();
-        let response = request.send().unwrap(); // TODO: how to handle?
+        let response = request.try_clone().unwrap().send().unwrap(); // TODO: how to handle?
 
         // TODO: better way of measuring the time?
         let duration = start.elapsed();
@@ -71,14 +75,18 @@ impl BenchClient {
         let n_runs = self.input.n_runs();
         let mut stats_collector = StatsCollector::init(n_runs, du);
 
+        let request = self.assemble_request();
+
         match self.input.concurrency_level() {
             ConcurrenyLevel::Sequential => {
                 for _ in 0..self.input.warmup_runs() {
-                    self.request(&mut stats_collector);
+                    println!("Warum up run");
+                    let _ = request.try_clone().unwrap().send().unwrap();
+                    // TODO: how to handle?
                 }
                 println!("Starting measurment of {} samples", n_runs);
                 for _ in 0..n_runs {
-                    self.request(&mut stats_collector);
+                    self.timed_request(&request, &mut stats_collector);
                 }
             }
             ConcurrenyLevel::Concurrent(_level) => {

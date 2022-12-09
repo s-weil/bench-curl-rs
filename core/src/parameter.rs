@@ -31,6 +31,9 @@ pub struct BenchInput {
     headers: Option<String>, // TODO: make a KV collection
     #[serde(rename = "jsonPayload")]
     json_payload: Option<String>,
+    #[serde(rename = "gqlQuery")]
+    gql_query: Option<String>,
+
     #[serde(rename = "bearerToken")]
     pub bearer_token: Option<String>,
 
@@ -48,6 +51,8 @@ pub struct BenchInput {
     // * output path for results etc
     // * randomized requests / vec of payloads
     // * logging param with level?
+    // #[serde(rename = "jsonPayloads")]
+    // json_payloads: Option<Vec<String>>,
 }
 
 impl BenchInput {
@@ -56,10 +61,6 @@ impl BenchInput {
             url,
             ..Self::default()
         }
-    }
-
-    pub fn from_get_url(url: String) -> Self {
-        Self::new(url)
     }
 
     pub fn n_runs(&self) -> usize {
