@@ -21,3 +21,4 @@ Statistics-driven benchmarking of http-webapps, in Rust.
 * wasm support? https://github.com/igiagkiozis/plotly#exporting-an-interactive-plot
 * show also curve / timeseries
 * add request_id to request, so that it can be traced back potentially? tbd: could be responsibility of user
+* add lib error

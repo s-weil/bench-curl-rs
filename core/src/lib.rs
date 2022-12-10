@@ -1,60 +1,31 @@
 mod config;
 mod plots;
+mod request_factory;
 mod stats;
 
 use crate::config::ConcurrenyLevel;
 use log::{error, info};
 use reqwest::*;
-use serde::Serialize;
 use stats::{Stats, StatsCollector};
 use std::time::Instant;
 
 pub use config::BenchConfig;
 pub use plots::plot;
 
-#[derive(Serialize)]
-struct GqlQuery<'a> {
-    query: &'a String,
-}
-
 pub struct BenchClient {
-    client: blocking::Client,
+    // client: blocking::Client,
+    request_factory: request_factory::RequestFactory,
     config: BenchConfig,
 }
 
 impl BenchClient {
     pub fn init(config: BenchConfig) -> Result<Self> {
-        let client = blocking::ClientBuilder::new().build()?;
-        Ok(Self { config, client })
-    }
+        let request_factory = request_factory::RequestFactory::new()?;
 
-    fn assemble_request(&self) -> Option<blocking::RequestBuilder> {
-        let mut request = match self.config.method {
-            config::Method::Get => self.client.get(&self.config.url),
-            config::Method::Post => {
-                let request = self.client.post(&self.config.url);
-
-                if let Some(json) = &self.config.json_payload {
-                    request.json(json)
-                } else if let Some(query) = &self.config.gql_query {
-                    let gql_query_payload = GqlQuery { query };
-                    request.json(&gql_query_payload)
-                } else {
-                    error!("Expected either `json_payload` or `gql_query` in the config.");
-                    return None;
-                }
-            }
-            _ => unimplemented!("todo"),
-        };
-
-        if let Some(token) = &self.config.bearer_token {
-            request = request.bearer_auth(token);
-        }
-
-        if let Some(_headers) = &self.config.headers {
-            todo!("add headermap");
-        }
-        Some(request)
+        Ok(Self {
+            config,
+            request_factory,
+        })
     }
 
     fn timed_request(
@@ -83,7 +54,7 @@ impl BenchClient {
         let n_runs = self.config.n_runs();
         let mut stats_collector = StatsCollector::init(n_runs, du);
 
-        let request = match self.assemble_request() {
+        let request = match self.request_factory.assemble_request(&self.config) {
             Some(req) => req,
             None => {
                 error!("Failed to compile the request");

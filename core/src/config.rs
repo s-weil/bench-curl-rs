@@ -1,5 +1,7 @@
 use serde::Deserialize;
 
+use crate::request_factory::Method;
+
 #[derive(Default, Deserialize, Debug, Clone)]
 pub enum DurationScale {
     Nano,
@@ -15,15 +17,6 @@ pub enum ConcurrenyLevel {
     Sequential,
     /// Concurrency level
     Concurrent(usize),
-}
-
-#[derive(Deserialize, Debug, Default)]
-pub enum Method {
-    #[default]
-    Get,
-    Post,
-    Put,
-    Delete,
 }
 
 // TODO: structure into sub types
