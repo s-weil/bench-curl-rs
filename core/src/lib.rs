@@ -30,11 +30,11 @@ impl BenchClient {
 
     fn assemble_request(&self) -> Option<blocking::RequestBuilder> {
         let mut request = match self.config.method {
-            config::Method::GET => self.client.get(&self.config.url),
-            config::Method::POST => {
+            config::Method::Get => self.client.get(&self.config.url),
+            config::Method::Post => {
                 let request = self.client.post(&self.config.url);
 
-                let request = if let Some(json) = &self.config.json_payload {
+                if let Some(json) = &self.config.json_payload {
                     request.json(json)
                 } else if let Some(query) = &self.config.gql_query {
                     let gql_query_payload = GqlQuery { query };
@@ -42,8 +42,7 @@ impl BenchClient {
                 } else {
                     error!("Expected either `json_payload` or `gql_query` in the config.");
                     return None;
-                };
-                request
+                }
             }
             _ => unimplemented!("todo"),
         };
@@ -52,6 +51,9 @@ impl BenchClient {
             request = request.bearer_auth(token);
         }
 
+        if let Some(_headers) = &self.config.headers {
+            todo!("add headermap");
+        }
         Some(request)
     }
 
@@ -109,8 +111,6 @@ impl BenchClient {
             }
         }
 
-        let stats = stats_collector.collect();
-
-        stats
+        stats_collector.collect()
     }
 }

@@ -7,7 +7,6 @@ Statistics-driven benchmarking of http-webapps, in Rust.
 
 ### TODO:
 * dump also a table of stats into the results folder
-* http examples for testing
 * provide param for measuring in milli/micro/nano
 * cli
 * plotly

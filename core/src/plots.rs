@@ -5,9 +5,11 @@ use plotly::common::{Marker, Title};
 use plotly::layout::{Axis, BoxMode, Layout};
 use plotly::{BoxPlot, Plot, Rgb};
 
-/// https://github.com/igiagkiozis/plotly/blob/master/examples/statistical_charts/src/main.rs
-///
+/// https://github.com/igiagkiozis/plotly/blob/master/examples/statistical_charts/src/main.rs///
 /// https://igiagkiozis.github.io/plotly/content/recipes/statistical_charts/box_plots.html
+///
+
+// TODO: add plotoptions with outputpath, duration scale, title etc
 
 pub fn plot(stats: Stats, output_path: Option<String>) {
     info!("plotting");
@@ -23,7 +25,7 @@ pub fn plot(stats: Stats, output_path: Option<String>) {
         .box_mode(BoxMode::Group);
     plot.set_layout(layout);
 
-    let trace_all = BoxPlot::new(stats.distribution.clone())
+    let trace_all = BoxPlot::new(stats.distribution)
         .name("")
         .jitter(0.7)
         .point_pos(-1.8)

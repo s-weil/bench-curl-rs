@@ -20,10 +20,10 @@ pub enum ConcurrenyLevel {
 #[derive(Deserialize, Debug, Default)]
 pub enum Method {
     #[default]
-    GET,
-    POST,
-    PUT,
-    DELETE,
+    Get,
+    Post,
+    Put,
+    Delete,
 }
 
 // TODO: structure into sub types
@@ -32,7 +32,7 @@ pub enum Method {
 pub struct BenchConfig {
     pub url: String,
     pub method: Method,
-    headers: Option<String>, // TODO: make a KV collection
+    pub headers: Option<String>, // TODO: make a KV collection
     #[serde(rename = "jsonPayload")]
     pub json_payload: Option<String>,
     #[serde(rename = "gqlQuery")]

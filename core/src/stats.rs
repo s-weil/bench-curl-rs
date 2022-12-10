@@ -1,4 +1,5 @@
 use crate::config::DurationScale;
+use log::warn;
 use reqwest::blocking::Response;
 use std::{
     collections::HashMap,
@@ -60,7 +61,7 @@ fn sum(durations: &[f64]) -> f64 {
 
 /// Calculates the [empirical percentile](https://en.wikipedia.org/wiki/Percentile).
 /// Due to earlier validation, `durations` is a non-empty, sorted vector at this point and `n` > 0
-fn percentile(durations: &[f64], level: f64, n: f64) -> f64 {
+fn percentile(samples: &[f64], level: f64, n: f64) -> f64 {
     // NOTE: have to add `-1` below due to (mathematical) idx start of 1 (rather than 0)
     let candidate_idx = n * level;
     let floored = candidate_idx.floor() as usize;
@@ -69,23 +70,25 @@ fn percentile(durations: &[f64], level: f64, n: f64) -> f64 {
     if candidate_idx == floored as f64 {
         let idx_bottom = (floored - 1).max(0);
         let idx_top = floored.min(n as usize);
-        return 0.5 * (durations[idx_bottom] + durations[idx_top]);
+        return 0.5 * (samples[idx_bottom] + samples[idx_top]);
     }
     let idx = ((candidate_idx + 1.0).floor().min(n) as usize - 1).max(0);
-    durations[idx]
+    samples[idx]
 }
 
-fn standard_deviation(durations: &[f64], mean: f64) -> Option<f64> {
-    let len = durations.len();
+/// The biased sample standard deviation.
+fn standard_deviation(samples: &[f64], mean: f64) -> Option<f64> {
+    let len = samples.len();
     if len <= 1 {
         return None;
     }
-    let squared_errors = durations.iter().fold(0.0, |acc, d| {
+    let squared_errors = samples.iter().fold(0.0, |acc, d| {
         let error = (d - mean).powi(2);
         acc + error
     });
 
-    let std = squared_errors.sqrt() / len as f64;
+    let mean_squared_errors = squared_errors / len as f64; //(len - 1) as f64; which version to go with, biased or unbiased?
+    let std = mean_squared_errors.sqrt();
     Some(std)
 }
 
@@ -99,15 +102,16 @@ pub struct Stats {
     pub min: f64,
     pub max: f64,
     pub std: Option<f64>,
-    // TODO: outliers / min / max
     pub distribution: Vec<f64>,
     pub n_ok: usize,
-    pub n_errors: usize, // TODO: provide overview of errors - tbd if actually interestering or a corner case
+    pub n_errors: usize,
+    // TODO: provide overview of errors - tbd if actually interestering or a corner case
+    // TODO: outliers
 }
 
 impl Display for Stats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "")?;
+        writeln!(f)?;
         writeln!(f, "____________SUMMARY____________")?;
         writeln!(f, "number: ok: {} - failed: {}", self.n_ok, self.n_errors)?;
         writeln!(f, "Total Duration: {}", self.total)?;
@@ -122,7 +126,7 @@ impl Display for Stats {
         writeln!(f, "Max: {}", self.max)?;
         writeln!(f, "_______________________________")?;
         if self.distribution.len() <= 200 {
-            writeln!(f, "Distribution:")?;
+            writeln!(f, "Distribution (ordered):")?;
             writeln!(f, "{:?}", self.distribution)?;
         } else {
             writeln!(
@@ -140,8 +144,7 @@ impl Stats {
             return None;
         }
 
-        let n = collected_stats.results.len();
-        let mut durations = Vec::with_capacity(n);
+        let mut durations = Vec::with_capacity(collected_stats.results.len());
         let mut errors = HashMap::new();
         let mut n_errors = 0;
 
@@ -159,6 +162,12 @@ impl Stats {
                     n_errors += 1;
                 }
             }
+        }
+
+        let n = durations.len();
+        if n == 0 {
+            warn!("Measurement yielded no valid results.");
+            return None;
         }
 
         let sum = sum(&durations);
@@ -208,5 +217,16 @@ mod tests {
 
         let quartile_trd = percentile(&samples, 0.75, 10.0);
         assert_eq!(quartile_trd, 92.0);
+    }
+
+    #[test]
+    fn test_standard_deviation() {
+        let samples = vec![2., 4., 4., 4., 5., 5., 7., 9.];
+
+        let mean = sum(&samples) / 8.0;
+        assert_eq!(mean, 5.0);
+        let std = standard_deviation(&samples, mean);
+        assert!(std.is_some());
+        assert_eq!(std.unwrap(), 2.0);
     }
 }

@@ -5,7 +5,7 @@ url = "http://127.0.0.1:8000/ping" # fastapi
 # url = "http://localhost:8080/ping" # actix
 # url = "http://0.0.0.0:8080/delayed/10" # actix
 ## --- GET
-method = "GET"
+method = "Get"
 ## --- POST
 # method = "POST"
 # json_payload = "json"
@@ -13,9 +13,9 @@ method = "GET"
 ## Auth
 # bearer_token = "1q2asdasd.asdasdasd.asd123e"
 ## Run config
-n_runs = 100      # the default
-n_warmup_runs = 1
+n_runs = 100      # default=100
+n_warmup_runs = 1  # default=0
 # concurrency_level = 1 # the default
-duration_scale = "Micro" # | Milli | Nano
+duration_scale = "Micro" #  Secs | Milli | Micro(Default) | Nano 
 # results_folder = "./tests/actix.html"
 results_folder = "tests/fastapi"
