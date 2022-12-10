@@ -27,7 +27,8 @@ pub enum ConcurrenyLevel {
 pub struct BenchConfig {
     pub url: String,
     pub method: Method,
-    pub header_map: HashMap<String, String>,
+    // pub headers: HashMap<String, String>,
+    pub headers: Option<Vec<(String, String)>>,
     #[serde(rename = "jsonPayload")]
     pub json_payload: Option<String>,
     #[serde(rename = "gqlQuery")]

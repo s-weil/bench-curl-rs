@@ -66,11 +66,11 @@ impl RequestFactory {
             request = request.bearer_auth(token);
         }
 
-        // if let Some(headers) = &config.headers {
-        //     for (header_name, value) in headers.iter() {
-        //         request = request.header(header_name, value);
-        //     }
-        // }
+        if let Some(headers) = &config.headers {
+            for (header_name, value) in headers.iter() {
+                request = request.header(header_name, value);
+            }
+        }
         Some(request)
     }
 }

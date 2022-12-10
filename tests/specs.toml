@@ -10,8 +10,9 @@ url = "http://0.0.0.0:8080/ping" # actix
 ## --- GET
 method = "Get"
 ## --- POST
-# method = "POST"
+# method = "Post"
 # json_payload = "json"
+# gql_query = "query {}"
 ### --- OPTIONAL PARAMS ----
 ## Auth
 # bearer_token = "1q2asdasd.asdasdasd.asd123e"
@@ -23,6 +24,17 @@ duration_scale = "Micro" #  Secs | Milli | Micro(Default) | Nano
 # results_folder = "./tests/actix.html"
 results_folder = "tests/fastapi"
 
-[[header_map]]
-content-type = "application/json; charset=UTF-8"
-Content-Encoding = "deflate, gzip"
+headers = [
+    [
+        "content-type",
+        "application/json; charset=UTF-8",
+    ],
+    [
+        "content-encoding",
+        "deflate, gzip",
+    ],
+]
+
+# [[headers]]
+# content_type = "application/json; charset=UTF-8"
+# content-encoding = "deflate, gzip"
