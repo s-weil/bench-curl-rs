@@ -1,0 +1,18 @@
+[package]
+name = "bench-curl-cli"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+core = { path = "../core" }
+toml = "0.5.9"
+thiserror = "1.0"
+
+# logging
+env_logger = "0.10.0"
+log = { version = "0.4.17", feature = ["env_logger"] }
+
+# cli
+clap = { version = "4.0.29", features = ["derive"] }

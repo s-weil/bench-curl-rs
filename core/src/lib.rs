@@ -1,128 +1,109 @@
+mod config;
+mod plots;
 mod stats;
 
+use crate::config::ConcurrenyLevel;
+use log::{error, info};
 use reqwest::*;
-use serde::{Deserialize, Serialize};
-use stats::{DurationUnit, StatsCollector};
+use serde::Serialize;
+use stats::{Stats, StatsCollector};
 use std::time::Instant;
 
-/*
-    TODO:
-        * warmup phase, only then requests
-        * http examples for testing
-        * provide param for measuring in milli/micro/nano
-        * cli
-        * plotly
-        * tokio support (tbd)
-        * rayon support
-        * parallel via rayon?
-        * input randomizer
-        * unit test for stats
-*/
+pub use config::BenchConfig;
+pub use plots::plot;
 
-#[derive(Default, Debug, Deserialize)]
-pub enum ConcurrenyLevel {
-    #[default]
-    Sequential,
-    /// Concurrency level
-    Concurrent(usize),
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum Method {
-    GET,
-    POST,
-}
-
-#[derive(Deserialize, Debug)]
-
-pub struct BenchInput {
-    url: String,
-    method: Method,
-    headers: Option<String>, // TODO: make a KV collection
-    #[serde(rename = "jsonPayload")]
-    json_payload: Option<String>,
-    #[serde(rename = "bearerToken")]
-    bearer_token: Option<String>,
-
-    #[serde(rename = "durationUnit")]
-    duration_unit: Option<DurationUnit>,
-
-    #[serde(rename = "numberRuns")]
-    n_runs: Option<usize>,
-
-    #[serde(rename = "concurrencyLevel")]
-    concurrency_level: Option<usize>,
-    // TODO:
-    // * output path for results etc
-    // * randomized requests / vec of payloads
-}
-
-impl BenchInput {
-    fn n_runs(&self) -> usize {
-        self.n_runs.unwrap_or(100).min(0)
-    }
-
-    fn concurrency_level(&self) -> ConcurrenyLevel {
-        match self.concurrency_level {
-            Some(level) if level > 1 => ConcurrenyLevel::Concurrent(level),
-            _ => ConcurrenyLevel::Sequential,
-        }
-    }
+#[derive(Serialize)]
+struct GqlQuery<'a> {
+    query: &'a String,
 }
 
 pub struct BenchClient {
     client: blocking::Client,
-    input: BenchInput,
+    config: BenchConfig,
 }
 
 impl BenchClient {
-    pub fn init(input: BenchInput) -> Result<Self> {
-        let client = reqwest::blocking::ClientBuilder::new().build()?;
-        Ok(Self { input, client })
+    pub fn init(config: BenchConfig) -> Result<Self> {
+        let client = blocking::ClientBuilder::new().build()?;
+        Ok(Self { config, client })
     }
 
-    // fn assemble_request(&self) -> reqwest::blocking::Request {
-    //     let mut request = match self.input.method {
-    //         Method::GET => self.client.get(&self.input.url),
-    //         _ => todo!("other methods"),
-    //     };
+    fn assemble_request(&self) -> Option<blocking::RequestBuilder> {
+        let mut request = match self.config.method {
+            config::Method::Get => self.client.get(&self.config.url),
+            config::Method::Post => {
+                let request = self.client.post(&self.config.url);
 
-    //     if let Some(token) = &self.input.bearer_token {
-    //         request = request.bearer_auth(token);
-    //     }
-
-    //     request
-    // }calculate
-    fn request(&self, stats_collector: &mut StatsCollector) {
-        let mut request = match self.input.method {
-            Method::GET => self.client.get(&self.input.url),
-            _ => todo!("other methods"),
+                if let Some(json) = &self.config.json_payload {
+                    request.json(json)
+                } else if let Some(query) = &self.config.gql_query {
+                    let gql_query_payload = GqlQuery { query };
+                    request.json(&gql_query_payload)
+                } else {
+                    error!("Expected either `json_payload` or `gql_query` in the config.");
+                    return None;
+                }
+            }
+            _ => unimplemented!("todo"),
         };
 
-        if let Some(token) = &self.input.bearer_token {
+        if let Some(token) = &self.config.bearer_token {
             request = request.bearer_auth(token);
         }
 
-        // TOOD: use chrono and precisetime
-
-        // start the timing once the request is ready to go
-        let start = Instant::now();
-        let response = request.send().unwrap(); // TODO: how to handle?
-
-        let duration = start.elapsed();
-        stats_collector.add(response, duration);
+        if let Some(_headers) = &self.config.headers {
+            todo!("add headermap");
+        }
+        Some(request)
     }
 
-    pub fn start_run(&self) {
-        let du = self.input.duration_unit.clone();
+    fn timed_request(
+        &self,
+        request: &reqwest::blocking::RequestBuilder,
+        stats_collector: &mut StatsCollector,
+    ) {
+        let request = request.try_clone().unwrap();
+        let start = Instant::now();
 
-        let n_runs = self.input.n_runs();
-        let mut stats_collector = StatsCollector::init(n_runs, du.unwrap_or_default());
+        match request.send() {
+            Ok(response) => {
+                // TODO: better way of measuring the time?
+                let duration = start.elapsed();
+                stats_collector.add(response, duration);
+            }
+            Err(error) => {
+                error!("Error during sending request: {:?}", error);
+            }
+        }
+    }
 
-        match self.input.concurrency_level() {
+    pub fn start_run(&self) -> Option<Stats> {
+        let du = self.config.duration_unit();
+
+        let n_runs = self.config.n_runs();
+        let mut stats_collector = StatsCollector::init(n_runs, du);
+
+        let request = match self.assemble_request() {
+            Some(req) => req,
+            None => {
+                error!("Failed to compile the request");
+                return None;
+            }
+        };
+
+        match self.config.concurrency_level() {
             ConcurrenyLevel::Sequential => {
+                for _ in 0..self.config.warmup_runs() {
+                    // Trigger a first few requests, possibly to populate a cache or similiar
+                    info!("Warm-up run");
+                    if let Err(error) = request.try_clone().unwrap().send() {
+                        error!("Warm up failed: {:?}", error);
+                        return None;
+                    }
+                }
+                info!("Starting measurement of {} samples", n_runs);
                 for _ in 0..n_runs {
-                    self.request(&mut stats_collector);
+                    self.timed_request(&request, &mut stats_collector);
                 }
             }
             ConcurrenyLevel::Concurrent(_level) => {
@@ -130,9 +111,6 @@ impl BenchClient {
             }
         }
 
-        let stats = stats_collector.collect();
-
-        // TODO: print and plot
-        println!("SUMMARY: {:?}", stats);
+        stats_collector.collect()
     }
 }

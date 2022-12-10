@@ -1,0 +1,1 @@
+cargo r -- -f "./tests/specs.toml" from-toml
