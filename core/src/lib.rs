@@ -1,14 +1,14 @@
-mod parameter;
+mod config;
 mod plots;
 mod stats;
 
-use crate::parameter::ConcurrenyLevel;
+use crate::config::ConcurrenyLevel;
 use log::{error, info};
 use reqwest::*;
 use stats::{Stats, StatsCollector};
 use std::time::Instant;
 
-pub use parameter::BenchConfig;
+pub use config::BenchConfig;
 pub use plots::plot;
 
 pub struct BenchClient {
@@ -24,7 +24,7 @@ impl BenchClient {
 
     fn assemble_request(&self) -> reqwest::blocking::RequestBuilder {
         let mut request = match self.input.method {
-            parameter::Method::GET => self.client.get(&self.input.url),
+            config::Method::GET => self.client.get(&self.input.url),
             _ => todo!("other methods"),
         };
 
@@ -63,13 +63,17 @@ impl BenchClient {
         let n_runs = self.input.n_runs();
         let mut stats_collector = StatsCollector::init(n_runs, du);
 
+        let request = self.assemble_request();
+
         match self.input.concurrency_level() {
             ConcurrenyLevel::Sequential => {
                 for _ in 0..self.input.warmup_runs() {
                     // Trigger a first few requests, possibly to populate a cache or similiar
-                    info!("Warm up run");
-                    let _ = self.assemble_request().try_clone().unwrap().send().unwrap();
-                    // TODO: how to handle?
+                    info!("Warm-up run");
+                    if let Err(error) = request.try_clone().unwrap().send() {
+                        error!("Warm up failed: {:?}", error);
+                        return None;
+                    }
                 }
                 info!("Starting measurement of {} samples", n_runs);
                 for _ in 0..n_runs {

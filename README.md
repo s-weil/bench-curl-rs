@@ -1,12 +1,12 @@
 # bench-curl-rs
 
-Statistics-driven benchmarking of http-webapp, in Rust.
+Statistics-driven benchmarking of http-webapps, in Rust.
 
 <img src="./examples/box_plot.jpg" width="700" height="600" />
 
 
 ### TODO:
-* warmup phase, only then requests
+* dump also a table of stats into the results folder
 * http examples for testing
 * provide param for measuring in milli/micro/nano
 * cli

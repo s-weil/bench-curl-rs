@@ -1,4 +1,4 @@
-use crate::parameter::DurationUnit;
+use crate::config::DurationScale;
 use reqwest::blocking::Response;
 use std::{
     collections::HashMap,
@@ -6,12 +6,13 @@ use std::{
     time::Duration,
 };
 
-impl DurationUnit {
+impl DurationScale {
     fn elapsed(&self, duration: &Duration) -> f64 {
         match self {
-            DurationUnit::Nano => duration.as_nanos() as f64,
-            DurationUnit::Micro => duration.as_micros() as f64,
-            DurationUnit::Milli => duration.as_millis() as f64,
+            DurationScale::Nano => duration.as_nanos() as f64,
+            DurationScale::Micro => duration.as_micros() as f64,
+            DurationScale::Milli => duration.as_millis() as f64,
+            DurationScale::Secs => duration.as_secs() as f64,
         }
     }
 }
@@ -24,13 +25,13 @@ enum RequestResult {
 }
 
 pub struct StatsCollector {
-    duration_unit: DurationUnit,
+    duration_unit: DurationScale,
     n_runs: usize,
     results: Vec<RequestResult>,
 }
 
 impl StatsCollector {
-    pub fn init(n_runs: usize, duration_unit: DurationUnit) -> Self {
+    pub fn init(n_runs: usize, duration_unit: DurationScale) -> Self {
         Self {
             n_runs: 0,
             duration_unit,

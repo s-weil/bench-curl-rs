@@ -49,8 +49,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let log_level = std::env::var(LOG_LEVEL).unwrap_or(DEFAULT_LEVEL.to_string());
     env_logger::Builder::from_env(Env::default().default_filter_or(&log_level)).init();
 
-    // env_logger::init();
-
     let args = CliArgs::parse();
 
     if let Some(specs) = match args.cmd {
@@ -83,7 +81,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         info!("initializing runner with {:?}", &specs);
         let unit = specs.duration_unit();
 
-        let dir = specs.plot_folder.clone();
+        let dir = specs.results_folder.clone();
         let bencher = BenchClient::init(specs)?;
         if let Some(stats) = bencher.start_run() {
             info!("SUMMARY: [in {:?}Secs] {:?}", unit, stats);

@@ -1,11 +1,12 @@
 use serde::Deserialize;
 
 #[derive(Default, Deserialize, Debug, Clone)]
-pub enum DurationUnit {
+pub enum DurationScale {
     Nano,
     #[default]
     Micro,
     Milli,
+    Secs,
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -39,7 +40,7 @@ pub struct BenchConfig {
     pub bearer_token: Option<String>,
 
     // #[serde(rename = "durationUnit")]
-    duration_unit: Option<DurationUnit>,
+    duration_unit: Option<DurationScale>,
 
     // #[serde(rename = "numberRuns")]
     n_runs: Option<usize>,
@@ -49,7 +50,7 @@ pub struct BenchConfig {
     // #[serde(rename = "concurrencyLevel")]
     concurrency_level: Option<usize>,
 
-    pub plot_folder: Option<String>,
+    pub results_folder: Option<String>,
     // TODO:
     // * output path for results etc
     // * randomized requests / vec of payloads
@@ -77,7 +78,7 @@ impl BenchConfig {
         }
     }
 
-    pub fn duration_unit(&self) -> DurationUnit {
+    pub fn duration_unit(&self) -> DurationScale {
         self.duration_unit.clone().unwrap_or_default()
     }
 
