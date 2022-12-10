@@ -42,7 +42,7 @@ pub struct BenchConfig {
     pub bearer_token: Option<String>,
 
     // #[serde(rename = "durationUnit")]
-    duration_unit: Option<DurationScale>,
+    duration_scale: Option<DurationScale>,
 
     // #[serde(rename = "numberRuns")]
     n_runs: Option<usize>,
@@ -81,7 +81,7 @@ impl BenchConfig {
     }
 
     pub fn duration_unit(&self) -> DurationScale {
-        self.duration_unit.clone().unwrap_or_default()
+        self.duration_scale.clone().unwrap_or_default()
     }
 
     pub fn warmup_runs(&self) -> usize {

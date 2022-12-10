@@ -24,11 +24,11 @@ pub struct BenchClient {
 
 impl BenchClient {
     pub fn init(config: BenchConfig) -> Result<Self> {
-        let client = reqwest::blocking::ClientBuilder::new().build()?;
+        let client = blocking::ClientBuilder::new().build()?;
         Ok(Self { config, client })
     }
 
-    fn assemble_request(&self) -> Option<reqwest::blocking::RequestBuilder> {
+    fn assemble_request(&self) -> Option<blocking::RequestBuilder> {
         let mut request = match self.config.method {
             config::Method::GET => self.client.get(&self.config.url),
             config::Method::POST => {

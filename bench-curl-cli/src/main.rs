@@ -6,7 +6,7 @@ extern crate clap;
 use clap::{Parser, Subcommand};
 use core::BenchClient;
 use env_logger::Env;
-use log::{error, info, trace};
+use log::{error, info};
 use std::error::Error;
 
 use crate::parser::{from_get_url, parse_toml};
@@ -84,7 +84,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let dir = specs.results_folder.clone();
         let bencher = BenchClient::init(specs)?;
         if let Some(stats) = bencher.start_run() {
-            info!("SUMMARY: [in {:?}Secs] {:?}", unit, stats);
+            info!("SUMMARY: [in {:?}Secs] {:}", unit, stats);
             core::plot(stats, dir);
         }
     }

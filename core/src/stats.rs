@@ -96,6 +96,8 @@ pub struct Stats {
     pub median: f64,
     pub quartile_fst: f64,
     pub quartile_trd: f64,
+    pub min: f64,
+    pub max: f64,
     pub std: Option<f64>,
     // TODO: outliers / min / max
     pub distribution: Vec<f64>,
@@ -105,10 +107,30 @@ pub struct Stats {
 
 impl Display for Stats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "SUMMARY")?;
-        write!(f, "Total Duration: {}", self.total)?;
-        write!(f, "Mean: {}", self.mean)
-        // TOOD: and others; plot distribution on console
+        writeln!(f, "")?;
+        writeln!(f, "____________SUMMARY____________")?;
+        writeln!(f, "number: ok: {} - failed: {}", self.n_ok, self.n_errors)?;
+        writeln!(f, "Total Duration: {}", self.total)?;
+        writeln!(f, "Mean: {}", self.mean)?;
+        if let Some(std) = self.std {
+            writeln!(f, "StdDev: {}", std)?;
+        }
+        writeln!(f, "Min: {}", self.min)?;
+        writeln!(f, "Quartile 1st: {}", self.quartile_fst)?;
+        writeln!(f, "Median: {}", self.median)?;
+        writeln!(f, "Quartile 3rd: {}", self.quartile_trd)?;
+        writeln!(f, "Max: {}", self.max)?;
+        writeln!(f, "_______________________________")?;
+        if self.distribution.len() <= 200 {
+            writeln!(f, "Distribution:")?;
+            writeln!(f, "{:?}", self.distribution)?;
+        } else {
+            writeln!(
+                f,
+                "Distribution cannot be displayed, length exceeding the limit"
+            )?;
+        }
+        writeln!(f, "_______________________________")
     }
 }
 
@@ -118,7 +140,7 @@ impl Stats {
             return None;
         }
 
-        let n = collected_stats.n_runs;
+        let n = collected_stats.results.len();
         let mut durations = Vec::with_capacity(n);
         let mut errors = HashMap::new();
         let mut n_errors = 0;
@@ -149,10 +171,16 @@ impl Stats {
         let quartile_trd = percentile(&durations, 0.25, n as f64);
         let quartile_fst = percentile(&durations, 0.75, n as f64);
 
+        // NOTE: durations is sorted and of len >= 1
+        let min = *durations.first().unwrap();
+        let max = *durations.last().unwrap();
+
         Some(Stats {
             total: sum,
             mean,
             median,
+            min,
+            max,
             std,
             quartile_fst,
             quartile_trd,

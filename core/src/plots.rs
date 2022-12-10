@@ -1,14 +1,9 @@
-use std::path;
-
 use crate::stats::Stats;
 use log::info;
-use plotly::box_plot::{BoxMean, BoxPoints};
-use plotly::common::{DashType, Line, Marker, Mode, Orientation, Title};
-use plotly::layout::{
-    Axis, BoxMode, Layout, Legend, RangeSelector, RangeSlider, SelectorButton, SelectorStep,
-    StepMode, TicksDirection,
-};
-use plotly::{BoxPlot, Histogram, Plot, Rgb, Rgba, Scatter};
+use plotly::box_plot::BoxPoints;
+use plotly::common::{Marker, Title};
+use plotly::layout::{Axis, BoxMode, Layout};
+use plotly::{BoxPlot, Plot, Rgb};
 
 /// https://github.com/igiagkiozis/plotly/blob/master/examples/statistical_charts/src/main.rs
 ///
@@ -58,7 +53,7 @@ pub fn plot(stats: Stats, output_path: Option<String>) {
     // plot.add_trace(trace1);
     // plot.add_trace(trace);
 
-    if let Some(path) = output_path {
+    if let Some(_path) = output_path {
         // plot.write_html("out.html");
         // let file_name = path::Path::new(&path).join("histogram.html");
         // info!("saved plot to {:?}", file_name.as_os_str().to_str());
