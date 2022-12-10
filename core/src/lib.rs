@@ -37,12 +37,10 @@ impl BenchClient {
 
     fn timed_request(
         &self,
-        // request: &reqwest::blocking::RequestBuilder,
+        request: &reqwest::blocking::RequestBuilder,
         stats_collector: &mut StatsCollector,
     ) {
-        // TODO: reuse the request
-        let request = self.assemble_request();
-        // let response = request.try_clone().unwrap();
+        let request = request.try_clone().unwrap();
         let start = Instant::now();
 
         match request.send() {
@@ -77,7 +75,7 @@ impl BenchClient {
                 }
                 info!("Starting measurement of {} samples", n_runs);
                 for _ in 0..n_runs {
-                    self.timed_request(&mut stats_collector);
+                    self.timed_request(&request, &mut stats_collector);
                 }
             }
             ConcurrenyLevel::Concurrent(_level) => {
