@@ -5,34 +5,54 @@ mod stats;
 use crate::config::ConcurrenyLevel;
 use log::{error, info};
 use reqwest::*;
+use serde::Serialize;
 use stats::{Stats, StatsCollector};
 use std::time::Instant;
 
 pub use config::BenchConfig;
 pub use plots::plot;
 
+#[derive(Serialize)]
+struct GqlQuery<'a> {
+    query: &'a String,
+}
+
 pub struct BenchClient {
     client: blocking::Client,
-    input: BenchConfig,
+    config: BenchConfig,
 }
 
 impl BenchClient {
-    pub fn init(input: BenchConfig) -> Result<Self> {
+    pub fn init(config: BenchConfig) -> Result<Self> {
         let client = reqwest::blocking::ClientBuilder::new().build()?;
-        Ok(Self { input, client })
+        Ok(Self { config, client })
     }
 
-    fn assemble_request(&self) -> reqwest::blocking::RequestBuilder {
-        let mut request = match self.input.method {
-            config::Method::GET => self.client.get(&self.input.url),
-            _ => todo!("other methods"),
+    fn assemble_request(&self) -> Option<reqwest::blocking::RequestBuilder> {
+        let mut request = match self.config.method {
+            config::Method::GET => self.client.get(&self.config.url),
+            config::Method::POST => {
+                let request = self.client.post(&self.config.url);
+
+                let request = if let Some(json) = &self.config.json_payload {
+                    request.json(json)
+                } else if let Some(query) = &self.config.gql_query {
+                    let gql_query_payload = GqlQuery { query };
+                    request.json(&gql_query_payload)
+                } else {
+                    error!("Expected either `json_payload` or `gql_query` in the config.");
+                    return None;
+                };
+                request
+            }
+            _ => unimplemented!("todo"),
         };
 
-        if let Some(token) = &self.input.bearer_token {
+        if let Some(token) = &self.config.bearer_token {
             request = request.bearer_auth(token);
         }
 
-        request
+        Some(request)
     }
 
     fn timed_request(
@@ -50,22 +70,28 @@ impl BenchClient {
                 stats_collector.add(response, duration);
             }
             Err(error) => {
-                error!("{:?}", error);
+                error!("Error during sending request: {:?}", error);
             }
         }
     }
 
     pub fn start_run(&self) -> Option<Stats> {
-        let du = self.input.duration_unit();
+        let du = self.config.duration_unit();
 
-        let n_runs = self.input.n_runs();
+        let n_runs = self.config.n_runs();
         let mut stats_collector = StatsCollector::init(n_runs, du);
 
-        let request = self.assemble_request();
+        let request = match self.assemble_request() {
+            Some(req) => req,
+            None => {
+                error!("Failed to compile the request");
+                return None;
+            }
+        };
 
-        match self.input.concurrency_level() {
+        match self.config.concurrency_level() {
             ConcurrenyLevel::Sequential => {
-                for _ in 0..self.input.warmup_runs() {
+                for _ in 0..self.config.warmup_runs() {
                     // Trigger a first few requests, possibly to populate a cache or similiar
                     info!("Warm-up run");
                     if let Err(error) = request.try_clone().unwrap().send() {

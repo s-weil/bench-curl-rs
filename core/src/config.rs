@@ -22,6 +22,8 @@ pub enum Method {
     #[default]
     GET,
     POST,
+    PUT,
+    DELETE,
 }
 
 // TODO: structure into sub types
@@ -32,9 +34,9 @@ pub struct BenchConfig {
     pub method: Method,
     headers: Option<String>, // TODO: make a KV collection
     #[serde(rename = "jsonPayload")]
-    json_payload: Option<String>,
+    pub json_payload: Option<String>,
     #[serde(rename = "gqlQuery")]
-    gql_query: Option<String>,
+    pub gql_query: Option<String>,
 
     // #[serde(rename = "bearerToken")]
     pub bearer_token: Option<String>,
