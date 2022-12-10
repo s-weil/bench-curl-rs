@@ -96,8 +96,7 @@ pub struct Stats {
     pub quartile_fst: f64,
     pub quartile_trd: f64,
     pub std: Option<f64>,
-    // TODO: outliers
-    // TODO: add buckets for histogramm and others instead
+    // TODO: outliers / min / max
     pub distribution: Vec<f64>,
     pub n_ok: usize,
     pub n_errors: usize, // TODO: provide overview of errors - tbd if actually interestering or a corner case

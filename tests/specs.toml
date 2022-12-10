@@ -1,7 +1,8 @@
 ###--- REQUIRED PARAMS ----
 # url = "http://127.0.0.1:8000/ping" # fastapi
 # url = "http://127.0.0.1:8000/delayed/10" # fastapi
-url = "http://0.0.0.0:8080/ping" # actix
+# url = "http://0.0.0.0:8080/ping" # actix
+url = "http://localhost:8080/ping" # actix
 # url = "http://0.0.0.0:8080/delayed/10" # actix
 ## --- GET
 method = "GET"
@@ -12,7 +13,8 @@ method = "GET"
 ## Auth
 # bearer_token = "1q2asdasd.asdasdasd.asd123e"
 ## Run config
-# n_runs = 100 # the default
+n_runs = 400      # the default
+n_warmup_runs = 1
 # concurrency_level = 1 # the default
 duration_unit = "Micro" # | Milli | Nano
 # plot_output = "./tests/actix.html"

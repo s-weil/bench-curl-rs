@@ -8,33 +8,16 @@ use reqwest::*;
 use stats::{Stats, StatsCollector};
 use std::time::Instant;
 
-pub use parameter::BenchInput;
+pub use parameter::BenchConfig;
 pub use plots::plot;
-
-/*
-    TODO:
-        * warmup phase, only then requests
-        * http examples for testing
-        * provide param for measuring in milli/micro/nano
-        * cli
-        * plotly
-        * tokio support (tbd)
-        * rayon support
-        * parallel via rayon?
-        * input randomizer (param to folder with json_payloads)
-        * functionality for A/B testing / testing different suites
-        * from json / yaml
-        * kaleido support? https://github.com/igiagkiozis/plotly#exporting-an-interactive-plot
-        * wasm support? https://github.com/igiagkiozis/plotly#exporting-an-interactive-plot
-*/
 
 pub struct BenchClient {
     client: blocking::Client,
-    input: BenchInput,
+    input: BenchConfig,
 }
 
 impl BenchClient {
-    pub fn init(input: BenchInput) -> Result<Self> {
+    pub fn init(input: BenchConfig) -> Result<Self> {
         let client = reqwest::blocking::ClientBuilder::new().build()?;
         Ok(Self { input, client })
     }
