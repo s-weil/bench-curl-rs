@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::Deserialize;
 
 use crate::request_factory::Method;
@@ -25,7 +27,7 @@ pub enum ConcurrenyLevel {
 pub struct BenchConfig {
     pub url: String,
     pub method: Method,
-    pub headers: Option<String>, // TODO: make a KV collection
+    pub header_map: HashMap<String, String>,
     #[serde(rename = "jsonPayload")]
     pub json_payload: Option<String>,
     #[serde(rename = "gqlQuery")]

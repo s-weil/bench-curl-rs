@@ -1,6 +1,9 @@
 use crate::BenchConfig;
 use log::error;
-use reqwest::*;
+use reqwest::{
+    header::{HeaderMap, HeaderValue},
+    *,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize)]
@@ -63,9 +66,11 @@ impl RequestFactory {
             request = request.bearer_auth(token);
         }
 
-        if let Some(_headers) = &config.headers {
-            todo!("add headermap");
-        }
+        // if let Some(headers) = &config.headers {
+        //     for (header_name, value) in headers.iter() {
+        //         request = request.header(header_name, value);
+        //     }
+        // }
         Some(request)
     }
 }

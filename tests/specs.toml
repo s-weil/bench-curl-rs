@@ -6,6 +6,7 @@ url = "http://0.0.0.0:8080/ping" # actix
 # url = "http://localhost:8080/ping" # actix
 # url = "http://0.0.0.0:8080/delayed/10" # actix
 # url = "http://0.0.0.0:8080/items/" # actix
+
 ## --- GET
 method = "Get"
 ## --- POST
@@ -21,3 +22,7 @@ n_warmup_runs = 1 # default=0
 duration_scale = "Micro" #  Secs | Milli | Micro(Default) | Nano 
 # results_folder = "./tests/actix.html"
 results_folder = "tests/fastapi"
+
+[[header_map]]
+content-type = "application/json; charset=UTF-8"
+Content-Encoding = "deflate, gzip"
