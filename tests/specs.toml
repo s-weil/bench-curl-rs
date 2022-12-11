@@ -1,17 +1,23 @@
 ###--- REQUIRED PARAMS ----
+
+## FASTAPI
 # url = "http://127.0.0.1:8000/ping" # fastapi
 # url = "http://127.0.0.1:8000/delayed/10" # fastapi
+# url = "http://127.0.0.1:8000/items" # fastapi post
 
-url = "http://0.0.0.0:8080/ping" # actix
-# url = "http://localhost:8080/ping" # actix
+## RUST
+# url = "http://0.0.0.0:8080/ping" # actix
+# url = "http://localhost:8080/ping" # actix windows
 # url = "http://0.0.0.0:8080/delayed/10" # actix
 # url = "http://0.0.0.0:8080/items/" # actix
+url = "http://0.0.0.0:8080/items/" # actix post
 
 ## --- GET
-method = "Get"
+# method = "Get"
 ## --- POST
-# method = "Post"
-# json_payload = "json"
+method = "Post"
+json_payload = """ { "name": "john doezer", "price": 10.2 }"""
+# json_payload_ref = "json_payload.json"
 # gql_query = "query {}"
 ### --- OPTIONAL PARAMS ----
 ## Auth
@@ -26,13 +32,14 @@ results_folder = "tests/fastapi"
 
 headers = [
     [
-        "content-type",
-        "application/json; charset=UTF-8",
+        "Content-Type",
+        "application/json",
+        # "application/json; charset=UTF-8",
     ],
-    [
-        "content-encoding",
-        "deflate, gzip",
-    ],
+    # [
+    #     "content-encoding",
+    #     "deflate, gzip",
+    # ],
 ]
 
 # [[headers]]

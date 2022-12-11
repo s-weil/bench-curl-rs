@@ -5,6 +5,7 @@ mod stats;
 
 use crate::config::ConcurrenyLevel;
 use log::{error, info};
+use request_factory::RequestFactory;
 use reqwest::*;
 use stats::{Stats, StatsCollector};
 use std::time::Instant;
@@ -13,8 +14,7 @@ pub use config::BenchConfig;
 pub use plots::plot;
 
 pub struct BenchClient {
-    // client: blocking::Client,
-    request_factory: request_factory::RequestFactory,
+    request_factory: RequestFactory,
     config: BenchConfig,
 }
 
@@ -30,7 +30,7 @@ impl BenchClient {
 
     fn timed_request(
         &self,
-        request: &reqwest::blocking::RequestBuilder,
+        request: &blocking::RequestBuilder,
         stats_collector: &mut StatsCollector,
     ) {
         let request = request.try_clone().unwrap();
@@ -72,7 +72,10 @@ impl BenchClient {
                         return None;
                     }
                 }
-                info!("Starting measurement of {} samples", n_runs);
+                info!(
+                    "Starting measurement of {} samples to {}",
+                    n_runs, self.config.url
+                );
                 for _ in 0..n_runs {
                     self.timed_request(&request, &mut stats_collector);
                 }

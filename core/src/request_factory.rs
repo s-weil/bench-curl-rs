@@ -1,5 +1,5 @@
 use crate::BenchConfig;
-use log::error;
+use log::{error, warn};
 use reqwest::{
     header::{HeaderMap, HeaderValue},
     *,
@@ -11,7 +11,7 @@ struct GqlQuery<'a> {
     query: &'a String,
 }
 
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug, Default, PartialEq)]
 pub enum Method {
     #[default]
     Get,
@@ -47,10 +47,14 @@ impl RequestFactory {
         let mut request = match config.method {
             Method::Get => self.client.get(&config.url),
             Method::Post => {
-                let request = self.client.post(&config.url);
+                let data = r#"{
+                    "name": "John Doe",
+                    "price": 43.1
+                  }"#;
 
-                if let Some(json) = &config.json_payload {
-                    request.json(json)
+                let request = self.client.post(&config.url);
+                if let Some(json) = config.json_payload().clone() {
+                    request.body(data)
                 } else if let Some(query) = &config.gql_query {
                     let gql_query_payload = GqlQuery { query };
                     request.json(&gql_query_payload)
@@ -62,6 +66,8 @@ impl RequestFactory {
             _ => unimplemented!("todo"),
         };
 
+        // dbg!(&request.body());
+
         if let Some(token) = &config.bearer_token {
             request = request.bearer_auth(token);
         }
@@ -70,7 +76,10 @@ impl RequestFactory {
             for (header_name, value) in headers.iter() {
                 request = request.header(header_name, value);
             }
+        } else if &config.method == &Method::Post {
+            warn!("The method is 'POST' but no request headers are configured");
         }
+
         Some(request)
     }
 }

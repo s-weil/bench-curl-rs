@@ -43,7 +43,10 @@ impl StatsCollector {
     pub fn add(&mut self, response: Response, duration: Duration) {
         let result = match response.status().as_u16() as usize {
             200 => RequestResult::Ok(duration),
-            sc => RequestResult::Failed(sc),
+            sc => {
+                warn!("Received response with status code {}", sc);
+                RequestResult::Failed(sc)
+            }
         };
 
         self.results.push(result);
