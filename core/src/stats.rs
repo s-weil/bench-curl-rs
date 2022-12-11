@@ -115,19 +115,20 @@ pub struct Stats {
 impl Display for Stats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f)?;
-        writeln!(f, "____________SUMMARY____________")?;
-        writeln!(f, "number: ok: {} - failed: {}", self.n_ok, self.n_errors)?;
-        writeln!(f, "Total Duration: {}", self.total)?;
-        writeln!(f, "Mean: {}", self.mean)?;
+        writeln!(f, "__________________SUMMARY__________________")?;
+        writeln!(f, "| Number ok        | {} ", self.n_ok)?;
+        writeln!(f, "| Number failed    | {}", self.n_errors)?;
+        writeln!(f, "| Total Duration   | {}", self.total)?;
+        writeln!(f, "| Mean             | {}", self.mean)?;
         if let Some(std) = self.std {
-            writeln!(f, "StdDev: {}", std)?;
+            writeln!(f, "| StdDev           | {}", std)?;
         }
-        writeln!(f, "Min: {}", self.min)?;
-        writeln!(f, "Quartile 1st: {}", self.quartile_fst)?;
-        writeln!(f, "Median: {}", self.median)?;
-        writeln!(f, "Quartile 3rd: {}", self.quartile_trd)?;
-        writeln!(f, "Max: {}", self.max)?;
-        writeln!(f, "_______________________________")?;
+        writeln!(f, "| Min              | {}", self.min)?;
+        writeln!(f, "| Quartile 1st     | {}", self.quartile_fst)?;
+        writeln!(f, "| Median           | {}", self.median)?;
+        writeln!(f, "| Quartile 3rd     | {}", self.quartile_trd)?;
+        writeln!(f, "| Max              | {}", self.max)?;
+        writeln!(f, "___________________________________________")?;
         if self.distribution.len() <= 200 {
             writeln!(f, "Distribution (ordered):")?;
             writeln!(f, "{:?}", self.distribution)?;
@@ -137,7 +138,7 @@ impl Display for Stats {
                 "Distribution cannot be displayed, length exceeding the limit"
             )?;
         }
-        writeln!(f, "_______________________________")
+        writeln!(f, "___________________________________________")
     }
 }
 

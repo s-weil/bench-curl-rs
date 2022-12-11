@@ -59,7 +59,7 @@ pub fn plot(stats: Stats, output_path: Option<String>) {
 
     if let Some(path) = output_path {
         // TODO: add title
-        let file_name = path::Path::new(&path).join("histogram.html");
+        let file_name = path::Path::new(&path).join("box_plot.html");
         plot.to_html(file_name);
         info!("Saved plot to {}", &path);
     } else {
