@@ -47,14 +47,14 @@ impl RequestFactory {
         let mut request = match config.method {
             Method::Get => self.client.get(&config.url),
             Method::Post => {
-                let data = r#"{
-                    "name": "John Doe",
-                    "price": 43.1
-                  }"#;
-
                 let request = self.client.post(&config.url);
-                if let Some(json) = config.json_payload().clone() {
-                    request.body(data)
+                if let Some(_json) = &config.json_payload() {
+                    request.body(
+                        r#"{
+                        "name": "John Doe",
+                        "price": 43.1
+                      }"#,
+                    )
                 } else if let Some(query) = &config.gql_query {
                     let gql_query_payload = GqlQuery { query };
                     request.json(&gql_query_payload)

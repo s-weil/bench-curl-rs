@@ -28,7 +28,7 @@ n_warmup_runs = 1 # default=0
 # concurrency_level = 1 # the default
 duration_scale = "Micro" #  Secs | Milli | Micro(Default) | Nano 
 # results_folder = "./tests/actix.html"
-results_folder = "tests/fastapi"
+results_folder = "tests/actix"
 
 headers = [
     [

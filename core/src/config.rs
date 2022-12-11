@@ -85,15 +85,21 @@ impl BenchConfig {
         self.n_warmup_runs.unwrap_or(0).max(0)
     }
 
-    pub fn json_payload(&self) -> &Option<&str> {
-        if self.json_payload.is_some() {
-            return &self.json_payload.map(|json| json.as_str());
-        }
+    pub fn json_payload<'a>(&'a self) -> Option<&'a str> {
+        // if self.json_payload.is_some() {
+        //     return &self.json_payload.map(|json| json.as_str());
+        // }
+        return Some(
+            r#"{
+            "name": "John Doe",
+            "price": 43.1
+          }"#,
+        );
 
         if let Some(_file_name) = &self.json_payload_ref {
             todo!("read in file with json payload");
         }
 
-        &None
+        None
     }
 }
