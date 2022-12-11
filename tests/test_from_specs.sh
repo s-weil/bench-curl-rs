@@ -1,1 +1,1 @@
-cargo r -- -f "./tests/specs.toml" from-toml
+cargo r --release -- -f "./tests/specs.toml" from-toml 

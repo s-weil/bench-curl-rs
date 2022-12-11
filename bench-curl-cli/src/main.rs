@@ -37,7 +37,7 @@ struct CliArgs {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let log_level = std::env::var(LOG_LEVEL).unwrap_or(DEFAULT_LEVEL.to_string());
+    let log_level = std::env::var(LOG_LEVEL).unwrap_or_else(|_| DEFAULT_LEVEL.to_string());
     env_logger::Builder::from_env(Env::default().default_filter_or(&log_level)).init();
 
     let args = CliArgs::parse();

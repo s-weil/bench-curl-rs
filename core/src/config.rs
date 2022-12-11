@@ -1,3 +1,4 @@
+use crate::request_factory::Method;
 use serde::Deserialize;
 
 #[derive(Default, Deserialize, Debug, Clone)]
@@ -17,25 +18,18 @@ pub enum ConcurrenyLevel {
     Concurrent(usize),
 }
 
-#[derive(Deserialize, Debug, Default)]
-pub enum Method {
-    #[default]
-    Get,
-    Post,
-    Put,
-    Delete,
-}
-
 // TODO: structure into sub types
 #[derive(Deserialize, Debug, Default)]
 
 pub struct BenchConfig {
     pub url: String,
     pub method: Method,
-    pub headers: Option<String>, // TODO: make a KV collection
-    #[serde(rename = "jsonPayload")]
+    // pub headers: HashMap<String, String>,
+    pub headers: Option<Vec<(String, String)>>,
+    // #[serde(rename = "jsonPayload")]
     pub json_payload: Option<String>,
-    #[serde(rename = "gqlQuery")]
+    pub json_payload_ref: Option<String>,
+    // #[serde(rename = "gqlQuery")]
     pub gql_query: Option<String>,
 
     // #[serde(rename = "bearerToken")]
@@ -86,5 +80,17 @@ impl BenchConfig {
 
     pub fn warmup_runs(&self) -> usize {
         self.n_warmup_runs.unwrap_or(0).max(0)
+    }
+
+    pub fn json_payload(&self) -> Option<String> {
+        if self.json_payload.is_some() {
+            return self.json_payload.clone();
+        }
+
+        if let Some(_file_name) = &self.json_payload_ref {
+            todo!("read in file with json payload");
+        }
+
+        None
     }
 }
