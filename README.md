@@ -8,9 +8,7 @@ Statistics-driven benchmarking of http-webapplications, in Rust.
 ### TODO:
 * stats-extension:
     * dump also a table of stats into the results folder
-    * plot timeseries of requests and durations
-    * histogram
-    * distribution
+    * histogram / distribution
 * tokio support (tbd)
 * rayon support
 * -> support jupityer notebooks! via python api

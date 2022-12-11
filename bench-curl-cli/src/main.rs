@@ -70,7 +70,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         if let Some(stats) = bencher.start_run() {
             info!("Finished. Summary figures in {:?}Secs", unit);
             info!("{}", stats);
-            core::plot(stats, dir);
+            core::plot_stats(stats, dir);
         }
     }
     info!("Finished");

@@ -4,7 +4,6 @@ mod request_factory;
 mod stats;
 
 use crate::config::ConcurrenyLevel;
-use config::DurationScale;
 use log::{error, info};
 use request_factory::RequestFactory;
 use reqwest::*;
@@ -12,7 +11,7 @@ use stats::{Stats, StatsCollector};
 use std::time::Instant;
 
 pub use config::BenchConfig;
-pub use plots::plot;
+pub use plots::plot_stats;
 
 pub struct BenchClient {
     request_factory: RequestFactory,
