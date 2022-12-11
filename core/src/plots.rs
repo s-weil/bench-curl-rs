@@ -9,8 +9,6 @@ use plotly::{BoxPlot, Histogram, NamedColor, Plot, Rgb, Scatter};
 
 /// https://github.com/igiagkiozis/plotly/blob/master/examples/statistical_charts/src/main.rs///
 /// https://igiagkiozis.github.io/plotly/content/recipes/statistical_charts/box_plots.html
-///
-///
 
 pub fn plot_stats(stats: Stats, output_path: Option<String>) {
     info!("plotting");
@@ -63,6 +61,7 @@ fn plot_histogram(stats: &Stats, output_path: &Option<String>) {
 
     let trace_histogram = Histogram::new(stats.distribution.clone())
         .name("h")
+        .opacity(0.6)
         .marker(Marker::new().color(NamedColor::Blue));
 
     plot.add_trace(trace_histogram);

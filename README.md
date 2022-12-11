@@ -3,6 +3,7 @@
 Statistics-driven benchmarking of http-webapplications, in Rust.
 
 <img src="./examples/box_plot.jpg" width="700" height="600" />
+<img src="./examples/durations_timeseries.png" width="700" height="500" />
 
 
 ### TODO:
