@@ -1,9 +1,6 @@
 use crate::BenchConfig;
 use log::{error, warn};
-use reqwest::{
-    header::{HeaderMap, HeaderValue},
-    *,
-};
+use reqwest::{blocking, Result};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize)]
@@ -11,7 +8,7 @@ struct GqlQuery<'a> {
     query: &'a String,
 }
 
-#[derive(Deserialize, Debug, Default, PartialEq)]
+#[derive(Deserialize, Debug, Default, PartialEq, Eq)]
 pub enum Method {
     #[default]
     Get,
@@ -48,13 +45,8 @@ impl RequestFactory {
             Method::Get => self.client.get(&config.url),
             Method::Post => {
                 let request = self.client.post(&config.url);
-                if let Some(_json) = &config.json_payload() {
-                    request.body(
-                        r#"{
-                        "name": "John Doe",
-                        "price": 43.1
-                      }"#,
-                    )
+                if let Some(json) = config.json_payload() {
+                    request.body(json)
                 } else if let Some(query) = &config.gql_query {
                     let gql_query_payload = GqlQuery { query };
                     request.json(&gql_query_payload)
@@ -76,7 +68,7 @@ impl RequestFactory {
             for (header_name, value) in headers.iter() {
                 request = request.header(header_name, value);
             }
-        } else if &config.method == &Method::Post {
+        } else if config.method == Method::Post {
             warn!("The method is 'POST' but no request headers are configured");
         }
 
