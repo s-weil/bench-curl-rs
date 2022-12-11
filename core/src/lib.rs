@@ -4,6 +4,7 @@ mod request_factory;
 mod stats;
 
 use crate::config::ConcurrenyLevel;
+use config::DurationScale;
 use log::{error, info};
 use request_factory::RequestFactory;
 use reqwest::*;
@@ -30,17 +31,20 @@ impl BenchClient {
 
     fn timed_request(
         &self,
+        timer: &Instant,
         request: &blocking::RequestBuilder,
         stats_collector: &mut StatsCollector,
     ) {
         let request = request.try_clone().unwrap();
+        let measurement_start = timer.elapsed();
         let start = Instant::now();
 
         match request.send() {
             Ok(response) => {
                 // TODO: better way of measuring the time?
                 let duration = start.elapsed();
-                stats_collector.add(response, duration);
+                let measurement_end = timer.elapsed();
+                stats_collector.add(measurement_start, measurement_end, duration, response);
             }
             Err(error) => {
                 error!("Error during sending request: {:?}", error);
@@ -76,8 +80,9 @@ impl BenchClient {
                     "Starting measurement of {} samples to {}",
                     n_runs, self.config.url
                 );
+                let timer = Instant::now();
                 for _ in 0..n_runs {
-                    self.timed_request(&request, &mut stats_collector);
+                    self.timed_request(&timer, &request, &mut stats_collector);
                 }
             }
             ConcurrenyLevel::Concurrent(_level) => {

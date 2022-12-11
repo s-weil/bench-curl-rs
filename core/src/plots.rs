@@ -3,9 +3,9 @@ use std::path;
 use crate::stats::Stats;
 use log::info;
 use plotly::box_plot::BoxPoints;
-use plotly::common::{Marker, Title};
+use plotly::common::{Line, LineShape, Marker, Mode, Title};
 use plotly::layout::{Axis, BoxMode, Layout};
-use plotly::{BoxPlot, Plot, Rgb};
+use plotly::{BoxPlot, Plot, Rgb, Scatter};
 
 /// https://github.com/igiagkiozis/plotly/blob/master/examples/statistical_charts/src/main.rs///
 /// https://igiagkiozis.github.io/plotly/content/recipes/statistical_charts/box_plots.html
@@ -17,7 +17,7 @@ pub fn plot(stats: Stats, output_path: Option<String>) {
     info!("plotting");
     // let trace = Histogram::new(stats.distribution).name("h");
     let mut plot = Plot::new();
-    let layout = Layout::new()
+    let box_plot_layout = Layout::new()
         .title(Title::new("Box Plot"))
         .y_axis(
             Axis::new()
@@ -25,7 +25,7 @@ pub fn plot(stats: Stats, output_path: Option<String>) {
                 .zero_line(true),
         )
         .box_mode(BoxMode::Group);
-    plot.set_layout(layout);
+    // plot.set_layout(box_plot_layout);
 
     let trace_all = BoxPlot::new(stats.distribution)
         .name("")
@@ -33,8 +33,41 @@ pub fn plot(stats: Stats, output_path: Option<String>) {
         .point_pos(-1.8)
         .marker(Marker::new().color(Rgb::new(7, 40, 89)))
         .box_points(BoxPoints::All);
-    plot.add_trace(trace_all);
+    // plot.add_trace(trace_all);
 
+    let mut ts_dates: Vec<f64> = Vec::with_capacity(stats.time_series.len());
+    let mut ts_values = Vec::with_capacity(stats.time_series.len());
+
+    for (date, value) in stats.time_series {
+        ts_dates.push(date);
+        ts_values.push(value);
+    }
+
+    let trace_ts = Scatter::new(ts_dates, ts_values)
+        .mode(Mode::LinesMarkers)
+        .name("hv")
+        .line(Line::new().shape(LineShape::Hv));
+    plot.add_trace(trace_ts);
+
+    let ts_layout = Layout::new()
+        .title(Title::new("Durations time series"))
+        .x_axis(
+            Axis::new()
+                .title(Title::new("total duration"))
+                .zero_line(true),
+        )
+        .y_axis(
+            Axis::new()
+                .title(Title::new("request durations"))
+                .zero_line(true),
+        );
+    plot.set_layout(ts_layout);
+    // .legend(
+    //     Legend::new()
+    //         .y(0.5)
+    //         .trace_order("reversed")
+    //         .font(Font::new().size(16)),
+    // );
     // let trace_box = BoxPlot::new(stats.distribution.clone())
     //     .name("Suspected Outlier")
     //     .marker(
