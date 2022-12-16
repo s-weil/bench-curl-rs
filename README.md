@@ -1,4 +1,4 @@
-# bench-curl-rs
+# bURL (benchmarking-curl-rs)
 
 Statistics-driven benchmarking of http-webapplications, in Rust.
 
