@@ -1,24 +1,71 @@
-use std::path;
-
 use crate::stats::Stats;
 use log::trace;
 use plotly::box_plot::BoxPoints;
 use plotly::common::{Line, LineShape, Marker, Mode, Title};
-use plotly::histogram::Bins;
 use plotly::layout::{Axis, BoxMode, Layout};
 use plotly::{BoxPlot, Histogram, NamedColor, Plot, Rgb, Scatter};
+use std::fs;
+use std::path::{self, Path, PathBuf};
 
 /// https://github.com/igiagkiozis/plotly/blob/master/examples/statistical_charts/src/main.rs///
 /// https://igiagkiozis.github.io/plotly/content/recipes/statistical_charts/box_plots.html
 
-pub fn plot_stats(stats: Stats, output_path: Option<String>) {
-    // TODO: add plotoptions with outputpath, duration scale, title etc
-    plot_time_series(&stats, &output_path);
-    plot_histogram(&stats, &output_path);
-    plot_box_plot(stats, output_path);
+const REPORT_TEMPLATE: &str = r#"
+<html>
+</head>
+<body>
+<div>
+  <h3>distribution of request durations</h3>
+  <iframe src="./plots/durations_distribution.html" seamless width="800" height="600">
+    Warning: durations_distribution.html could not be included.
+  </iframe>
+</div>
+<div>
+  <h3>histogram of request durations</h3>
+  <iframe src="./plots/durations_histogram.html" seamless width="800" height="600" title = "histogram">
+    Warning: durations_histogram.html could not be included.
+  </iframe>
+</div>
+<div>
+  <h3>time series of request durations</h3>
+  <iframe src="./plots/durations_timeseries.html" seamless width="800" height="600">
+    Warning: durations_timeseries.html could not be included.
+  </iframe>
+</div>
+</body>
+</html>
+
+"#;
+
+fn setup_report(output_path: Option<String>) -> Option<PathBuf> {
+    let output = output_path?;
+    let path = Path::new(&output);
+
+    if !path.exists() {
+        fs::create_dir(path).unwrap();
+    }
+    let report_file = path.join("report.html");
+    if !report_file.exists() {
+        fs::write(report_file, REPORT_TEMPLATE).unwrap();
+    }
+
+    let plot_dir = Path::new(&path).join("plots");
+    if !plot_dir.exists() {
+        fs::create_dir(&plot_dir).unwrap();
+    }
+    Some(plot_dir)
 }
 
-fn plot_box_plot(stats: Stats, output_path: Option<String>) {
+pub fn plot_stats(stats: Stats, output_path: Option<String>) {
+    // TODO: add plotoptions with outputpath, duration scale, title etc
+
+    let plot_dir = setup_report(output_path);
+    plot_time_series(&stats, &plot_dir);
+    plot_histogram(&stats, &plot_dir);
+    plot_box_plot(stats, &plot_dir);
+}
+
+fn plot_box_plot(stats: Stats, output_path: &Option<PathBuf>) {
     // let trace = Histogram::new(stats.distribution).name("h");
     let mut plot = Plot::new();
     let box_plot_layout = Layout::new()
@@ -31,7 +78,7 @@ fn plot_box_plot(stats: Stats, output_path: Option<String>) {
         .box_mode(BoxMode::Group);
     plot.set_layout(box_plot_layout);
 
-    let trace_durations_box_plot = BoxPlot::new(stats.distribution.clone())
+    let trace_durations_box_plot = BoxPlot::new(stats.distribution)
         .name("")
         .jitter(0.7)
         .point_pos(-1.8)
@@ -47,37 +94,35 @@ fn plot_box_plot(stats: Stats, output_path: Option<String>) {
     // plot.add_trace(trace_histogram);
 
     if let Some(path) = output_path {
-        let file_name = path::Path::new(&path).join("durations_distribution.html");
+        let file_name = path.join("durations_distribution.html");
         plot.to_html(file_name);
-        trace!("Saved plot to {}", &path);
+        // trace!("Saved plot to {}", fipath.as_os_str());
     } else {
         plot.show();
     }
 }
 
-fn plot_histogram(stats: &Stats, output_path: &Option<String>) {
+fn plot_histogram(stats: &Stats, output_path: &Option<PathBuf>) {
     let mut plot = Plot::new();
 
     let trace_histogram = Histogram::new(stats.distribution.clone())
         .name("h")
         .opacity(0.6)
         .marker(Marker::new().color(NamedColor::Blue))
-        .n_bins_x(stats.n_ok / 5 as usize);
-    // .auto_bin_x(false)
-    // .x_bins(x_bins);
+        .n_bins_x(stats.n_ok / 5_usize);
 
     plot.add_trace(trace_histogram);
 
     if let Some(path) = output_path {
-        let file_name = path::Path::new(&path).join("durations_histogram.html");
+        let file_name = path.join("durations_histogram.html");
         plot.to_html(file_name);
-        trace!("Saved plot to {}", &path);
+        // trace!("Saved plot to {}", &path);
     } else {
         plot.show();
     }
 }
 
-fn plot_time_series(stats: &Stats, output_path: &Option<String>) {
+fn plot_time_series(stats: &Stats, output_path: &Option<PathBuf>) {
     let mut plot = Plot::new();
 
     let mut ts_dates: Vec<f64> = Vec::with_capacity(stats.time_series.len());
@@ -108,9 +153,9 @@ fn plot_time_series(stats: &Stats, output_path: &Option<String>) {
     plot.set_layout(ts_layout);
 
     if let Some(path) = output_path {
-        let file_name = path::Path::new(&path).join("durations_timeseries.html");
+        let file_name = path.join("durations_timeseries.html");
         plot.to_html(file_name);
-        trace!("Saved plot to {}", &path);
+        // trace!("Saved plot to {}", &path);
     } else {
         plot.show();
     }

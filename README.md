@@ -9,7 +9,7 @@ Statistics-driven benchmarking of http-webapplications, in Rust.
 ### TODO:
 * stats-extension:
     * dump also a table of stats into the results folder
-    * histogram / distribution (more granular)
+    * plot confidence interval
 * tokio support (tbd)
 * rayon support
 * -> support jupityer notebooks! via python api

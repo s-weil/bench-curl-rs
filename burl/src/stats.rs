@@ -140,18 +140,18 @@ impl Display for Stats {
             "______________SUMMARY_[in {}s]______________",
             &self.scale
         )?;
-        writeln!(f, "| Number ok        | {} ", self.n_ok)?;
-        writeln!(f, "| Number failed    | {}", self.n_errors)?;
-        writeln!(f, "| Total Duration   | {}", self.total)?;
-        writeln!(f, "| Mean             | {}", self.mean)?;
+        writeln!(f, "Number ok        | {} ", self.n_ok)?;
+        writeln!(f, "Number failed    | {}", self.n_errors)?;
+        writeln!(f, "Total Duration   | {}", self.total)?;
+        writeln!(f, "Mean             | {}", self.mean)?;
         if let Some(std) = self.std {
-            writeln!(f, "| StdDev           | {}", std)?;
+            writeln!(f, "StdDev           | {}", std)?;
         }
-        writeln!(f, "| Min              | {}", self.min)?;
-        writeln!(f, "| Quartile 1st     | {}", self.quartile_fst)?;
-        writeln!(f, "| Median           | {}", self.median)?;
-        writeln!(f, "| Quartile 3rd     | {}", self.quartile_trd)?;
-        writeln!(f, "| Max              | {}", self.max)?;
+        writeln!(f, "Min              | {}", self.min)?;
+        writeln!(f, "Quartile 1st     | {}", self.quartile_fst)?;
+        writeln!(f, "Median           | {}", self.median)?;
+        writeln!(f, "Quartile 3rd     | {}", self.quartile_trd)?;
+        writeln!(f, "Max              | {}", self.max)?;
         writeln!(f, "___________________________________________")?;
         if self.n_ok >= 12 {
             writeln!(f, "Distribution of percentiles:")?;
