@@ -88,7 +88,6 @@ fn plot_time_series(stats: &Stats, output_path: &Option<String>) {
 
     let trace_ts = Scatter::new(ts_dates, ts_values)
         .mode(Mode::LinesMarkers)
-        // .name("hv")
         .line(Line::new().shape(LineShape::Hv));
     plot.add_trace(trace_ts);
 
