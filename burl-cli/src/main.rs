@@ -4,8 +4,8 @@ mod parser;
 extern crate clap;
 
 use crate::parser::{from_get_url, parse_toml};
+use burl::BenchClient;
 use clap::{Parser, Subcommand};
-use core::BenchClient;
 use env_logger::Env;
 use log::{error, info, trace};
 use std::error::Error;
@@ -70,7 +70,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         if let Some(stats) = bencher.start_run() {
             info!("Finished. Summary figures in {:?}Secs", unit);
             info!("{}", stats);
-            core::plot_stats(stats, dir);
+            burl::plot_stats(stats, dir);
         }
     }
     info!("Finished");
