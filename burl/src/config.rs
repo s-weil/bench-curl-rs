@@ -1,5 +1,6 @@
 use crate::request_factory::Method;
 use serde::Deserialize;
+use std::fmt;
 
 #[derive(Default, Deserialize, Debug, Clone)]
 pub enum DurationScale {
@@ -8,6 +9,17 @@ pub enum DurationScale {
     Micro,
     Milli,
     Secs,
+}
+
+impl fmt::Display for DurationScale {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DurationScale::Nano => write!(f, "n"),
+            DurationScale::Micro => write!(f, "µ"),
+            DurationScale::Milli => write!(f, "m"),
+            DurationScale::Secs => write!(f, ""),
+        }
+    }
 }
 
 #[derive(Default, Debug, Deserialize)]

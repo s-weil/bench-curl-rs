@@ -1,9 +1,10 @@
 use std::path;
 
 use crate::stats::Stats;
-use log::info;
+use log::trace;
 use plotly::box_plot::BoxPoints;
 use plotly::common::{Line, LineShape, Marker, Mode, Title};
+use plotly::histogram::Bins;
 use plotly::layout::{Axis, BoxMode, Layout};
 use plotly::{BoxPlot, Histogram, NamedColor, Plot, Rgb, Scatter};
 
@@ -11,8 +12,6 @@ use plotly::{BoxPlot, Histogram, NamedColor, Plot, Rgb, Scatter};
 /// https://igiagkiozis.github.io/plotly/content/recipes/statistical_charts/box_plots.html
 
 pub fn plot_stats(stats: Stats, output_path: Option<String>) {
-    info!("plotting");
-
     // TODO: add plotoptions with outputpath, duration scale, title etc
     plot_time_series(&stats, &output_path);
     plot_histogram(&stats, &output_path);
@@ -50,7 +49,7 @@ fn plot_box_plot(stats: Stats, output_path: Option<String>) {
     if let Some(path) = output_path {
         let file_name = path::Path::new(&path).join("durations_distribution.html");
         plot.to_html(file_name);
-        info!("Saved plot to {}", &path);
+        trace!("Saved plot to {}", &path);
     } else {
         plot.show();
     }
@@ -62,14 +61,17 @@ fn plot_histogram(stats: &Stats, output_path: &Option<String>) {
     let trace_histogram = Histogram::new(stats.distribution.clone())
         .name("h")
         .opacity(0.6)
-        .marker(Marker::new().color(NamedColor::Blue));
+        .marker(Marker::new().color(NamedColor::Blue))
+        .n_bins_x(stats.n_ok / 5 as usize);
+    // .auto_bin_x(false)
+    // .x_bins(x_bins);
 
     plot.add_trace(trace_histogram);
 
     if let Some(path) = output_path {
         let file_name = path::Path::new(&path).join("durations_histogram.html");
         plot.to_html(file_name);
-        info!("Saved plot to {}", &path);
+        trace!("Saved plot to {}", &path);
     } else {
         plot.show();
     }
@@ -108,7 +110,7 @@ fn plot_time_series(stats: &Stats, output_path: &Option<String>) {
     if let Some(path) = output_path {
         let file_name = path::Path::new(&path).join("durations_timeseries.html");
         plot.to_html(file_name);
-        info!("Saved plot to {}", &path);
+        trace!("Saved plot to {}", &path);
     } else {
         plot.show();
     }

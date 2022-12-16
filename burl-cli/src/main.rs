@@ -44,7 +44,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     if let Some(specs) = match args.cmd {
         BenchRunnerArg::FromToml => {
-            info!("Parsing TOML");
+            trace!("Parsing TOML");
             let file_name = args.file_name.unwrap_or_else(|| "specs.toml".to_string());
 
             let specs = parse_toml(&file_name);
@@ -64,15 +64,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     } {
         trace!("initializing runner with {:?}", &specs);
-        let unit = specs.duration_unit();
         let dir = specs.results_folder.clone();
         let bencher = BenchClient::init(specs)?;
         if let Some(stats) = bencher.start_run() {
-            info!("Finished. Summary figures in {:?}Secs", unit);
+            // trace!("Finished. Summary figures in {:?}Secs", unit);
             info!("{}", stats);
             burl::plot_stats(stats, dir);
         }
     }
-    info!("Finished");
+    trace!("Finished");
     Ok(())
 }

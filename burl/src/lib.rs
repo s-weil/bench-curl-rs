@@ -70,13 +70,13 @@ impl BenchClient {
                 for _ in 0..self.config.warmup_runs() {
                     // Trigger a first few requests, possibly to populate a cache or similiar
                     info!("Warm-up run");
-                    if let Err(error) = request.try_clone().unwrap().send() {
+                    if let Err(error) = dbg!(request.try_clone().unwrap().send()) {
                         error!("Warm up failed: {:?}", error);
                         return None;
                     }
                 }
                 info!(
-                    "Starting measurement of {} samples to {}",
+                    "Starting measurement of {} samples from {}",
                     n_runs, self.config.url
                 );
                 let timer = Instant::now();
