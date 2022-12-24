@@ -1,11 +1,10 @@
 use crate::stats::Stats;
-use log::trace;
 use plotly::box_plot::BoxPoints;
 use plotly::common::{Line, LineShape, Marker, Mode, Title};
 use plotly::layout::{Axis, BoxMode, Layout};
 use plotly::{BoxPlot, Histogram, NamedColor, Plot, Rgb, Scatter};
 use std::fs;
-use std::path::{self, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 /// https://github.com/igiagkiozis/plotly/blob/master/examples/statistical_charts/src/main.rs///
 /// https://igiagkiozis.github.io/plotly/content/recipes/statistical_charts/box_plots.html
@@ -96,7 +95,6 @@ fn plot_box_plot(stats: Stats, output_path: &Option<PathBuf>) {
     if let Some(path) = output_path {
         let file_name = path.join("durations_distribution.html");
         plot.to_html(file_name);
-        // trace!("Saved plot to {}", fipath.as_os_str());
     } else {
         plot.show();
     }
@@ -116,7 +114,6 @@ fn plot_histogram(stats: &Stats, output_path: &Option<PathBuf>) {
     if let Some(path) = output_path {
         let file_name = path.join("durations_histogram.html");
         plot.to_html(file_name);
-        // trace!("Saved plot to {}", &path);
     } else {
         plot.show();
     }
@@ -155,7 +152,6 @@ fn plot_time_series(stats: &Stats, output_path: &Option<PathBuf>) {
     if let Some(path) = output_path {
         let file_name = path.join("durations_timeseries.html");
         plot.to_html(file_name);
-        // trace!("Saved plot to {}", &path);
     } else {
         plot.show();
     }
