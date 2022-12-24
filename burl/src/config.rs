@@ -36,6 +36,7 @@ pub enum ConcurrenyLevel {
 pub struct BenchConfig {
     pub url: String,
     pub method: Method,
+    pub disable_certificate_validation: bool,
     // pub headers: HashMap<String, String>,
     pub headers: Option<Vec<(String, String)>>,
     // #[serde(rename = "jsonPayload")]

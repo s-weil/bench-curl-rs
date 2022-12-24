@@ -35,8 +35,10 @@ pub struct RequestFactory {
 }
 
 impl RequestFactory {
-    pub fn new() -> Result<Self> {
-        let client = blocking::ClientBuilder::new().build()?;
+    pub fn new(disable_certificate_validation: bool) -> Result<Self> {
+        let client = blocking::ClientBuilder::new()
+            .danger_accept_invalid_certs(disable_certificate_validation)
+            .build()?;
         Ok(Self { client })
     }
 

@@ -20,7 +20,8 @@ pub struct BenchClient {
 
 impl BenchClient {
     pub fn init(config: BenchConfig) -> Result<Self> {
-        let request_factory = request_factory::RequestFactory::new()?;
+        let request_factory =
+            request_factory::RequestFactory::new(config.disable_certificate_validation)?;
 
         Ok(Self {
             config,
@@ -70,7 +71,7 @@ impl BenchClient {
                 for _ in 0..self.config.warmup_runs() {
                     // Trigger a first few requests, possibly to populate a cache or similiar
                     info!("Warm-up run");
-                    if let Err(error) = dbg!(request.try_clone().unwrap().send()) {
+                    if let Err(error) = request.try_clone().unwrap().send() {
                         error!("Warm up failed: {:?}", error);
                         return None;
                     }
