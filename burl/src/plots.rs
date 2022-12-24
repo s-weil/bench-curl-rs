@@ -1,6 +1,8 @@
 use crate::stats::Stats;
+use log::info;
 use plotly::box_plot::BoxPoints;
 use plotly::common::{Line, LineShape, Marker, Mode, Title};
+use plotly::histogram::HistNorm;
 use plotly::layout::{Axis, BoxMode, Layout};
 use plotly::{BoxPlot, Histogram, NamedColor, Plot, Rgb, Scatter};
 use std::fs;
@@ -14,26 +16,22 @@ const REPORT_TEMPLATE: &str = r#"
 </head>
 <body>
 <div>
-  <h3>distribution of request durations</h3>
-  <iframe src="./plots/durations_distribution.html" seamless width="800" height="600">
+  <iframe src="./plots/durations_distribution.html" seamless width="800" height="600" frameBorder="0">
     Warning: durations_distribution.html could not be included.
   </iframe>
 </div>
 <div>
-  <h3>histogram of request durations</h3>
-  <iframe src="./plots/durations_histogram.html" seamless width="800" height="600" title = "histogram">
+  <iframe src="./plots/durations_histogram.html" seamless width="800" height="600" title = "histogram" frameBorder="0">
     Warning: durations_histogram.html could not be included.
   </iframe>
 </div>
 <div>
-  <h3>time series of request durations</h3>
-  <iframe src="./plots/durations_timeseries.html" seamless width="800" height="600">
+  <iframe src="./plots/durations_timeseries.html" seamless width="800" height="600" frameBorder="0">
     Warning: durations_timeseries.html could not be included.
   </iframe>
 </div>
 </body>
 </html>
-
 "#;
 
 fn setup_report(output_path: Option<String>) -> Option<PathBuf> {
@@ -52,6 +50,8 @@ fn setup_report(output_path: Option<String>) -> Option<PathBuf> {
     if !plot_dir.exists() {
         fs::create_dir(&plot_dir).unwrap();
     }
+
+    info!("Creating report in {}", output);
     Some(plot_dir)
 }
 
@@ -103,7 +103,14 @@ fn plot_box_plot(stats: Stats, output_path: &Option<PathBuf>) {
 fn plot_histogram(stats: &Stats, output_path: &Option<PathBuf>) {
     let mut plot = Plot::new();
 
+    let layout = Layout::new()
+        .title(Title::new("Durations frequency distribution"))
+        .x_axis(Axis::new().title(Title::new("durations")).zero_line(true))
+        .y_axis(Axis::new().title(Title::new("frequency")).zero_line(true));
+    plot.set_layout(layout);
+
     let trace_histogram = Histogram::new(stats.distribution.clone())
+        .hist_norm(HistNorm::Probability)
         .name("h")
         .opacity(0.6)
         .marker(Marker::new().color(NamedColor::Blue))

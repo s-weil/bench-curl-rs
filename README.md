@@ -8,8 +8,9 @@ Statistics-driven benchmarking and load generation of http-webapplications, in R
 
 ### TODO:
 * iteration support for proper benchmarking
+* split config
 * stats-extension:
-    * dump also a table of stats into the results folder
+    * dump also a table of stats and the raw results into the results folder 
     * plot confidence interval
 * tokio support (tbd)
 * rayon support
