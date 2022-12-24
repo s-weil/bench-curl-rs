@@ -1,4 +1,4 @@
-use core::BenchConfig;
+use burl::BenchConfig;
 use log::error;
 use std::fs;
 

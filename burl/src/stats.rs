@@ -8,7 +8,7 @@ use std::{
 };
 
 impl DurationScale {
-    fn elapsed(&self, duration: &Duration) -> f64 {
+    pub fn elapsed(&self, duration: &Duration) -> f64 {
         match self {
             DurationScale::Nano => duration.as_nanos() as f64,
             DurationScale::Micro => duration.as_micros() as f64,
@@ -18,15 +18,21 @@ impl DurationScale {
     }
 }
 
+struct DurationPoint {
+    duration_since_start: Duration,
+    duration_request_end: Duration,
+    request_duration: Duration,
+}
+
 enum RequestResult {
-    /// Cont ains the status code.
+    /// Contains the status code.
     Failed(usize), // TODO: maybe add also durations here?
     /// Contains the duration of the request.
-    Ok(Duration),
+    Ok(DurationPoint),
 }
 
 pub struct StatsCollector {
-    duration_unit: DurationScale,
+    duration_scale: DurationScale,
     n_runs: usize,
     results: Vec<RequestResult>,
 }
@@ -35,14 +41,24 @@ impl StatsCollector {
     pub fn init(n_runs: usize, duration_unit: DurationScale) -> Self {
         Self {
             n_runs: 0,
-            duration_unit,
+            duration_scale: duration_unit,
             results: Vec::with_capacity(n_runs),
         }
     }
 
-    pub fn add(&mut self, response: Response, duration: Duration) {
+    pub fn add(
+        &mut self,
+        measurement_start: Duration,
+        measurement_end: Duration,
+        duration: Duration,
+        response: Response,
+    ) {
         let result = match response.status().as_u16() as usize {
-            200 => RequestResult::Ok(duration),
+            200 => RequestResult::Ok(DurationPoint {
+                duration_since_start: measurement_start,
+                duration_request_end: measurement_end,
+                request_duration: duration,
+            }),
             sc => {
                 warn!("Received response with status code {}", sc);
                 RequestResult::Failed(sc)
@@ -97,6 +113,7 @@ fn standard_deviation(samples: &[f64], mean: f64) -> Option<f64> {
 
 #[derive(Debug)]
 pub struct Stats {
+    scale: DurationScale,
     pub total: f64,
     pub mean: f64,
     pub median: f64,
@@ -110,33 +127,37 @@ pub struct Stats {
     pub n_errors: usize,
     // TODO: provide overview of errors - tbd if actually interestering or a corner case
     // TODO: outliers
+    pub time_series: Vec<(f64, f64)>,
+    /// Percentiles 1% 5% 10% 20% 30% 40% 50% 60% 70% 80% 90% 95% 99%
+    percentiles: Vec<(f64, f64)>,
 }
 
 impl Display for Stats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f)?;
-        writeln!(f, "__________________SUMMARY__________________")?;
-        writeln!(f, "| Number ok        | {} ", self.n_ok)?;
-        writeln!(f, "| Number failed    | {}", self.n_errors)?;
-        writeln!(f, "| Total Duration   | {}", self.total)?;
-        writeln!(f, "| Mean             | {}", self.mean)?;
+        writeln!(
+            f,
+            "______________SUMMARY_[in {}s]______________",
+            &self.scale
+        )?;
+        writeln!(f, "Number ok        | {} ", self.n_ok)?;
+        writeln!(f, "Number failed    | {}", self.n_errors)?;
+        writeln!(f, "Total Duration   | {}", self.total)?;
+        writeln!(f, "Mean             | {}", self.mean)?;
         if let Some(std) = self.std {
-            writeln!(f, "| StdDev           | {}", std)?;
+            writeln!(f, "StdDev           | {}", std)?;
         }
-        writeln!(f, "| Min              | {}", self.min)?;
-        writeln!(f, "| Quartile 1st     | {}", self.quartile_fst)?;
-        writeln!(f, "| Median           | {}", self.median)?;
-        writeln!(f, "| Quartile 3rd     | {}", self.quartile_trd)?;
-        writeln!(f, "| Max              | {}", self.max)?;
+        writeln!(f, "Min              | {}", self.min)?;
+        writeln!(f, "Quartile 1st     | {}", self.quartile_fst)?;
+        writeln!(f, "Median           | {}", self.median)?;
+        writeln!(f, "Quartile 3rd     | {}", self.quartile_trd)?;
+        writeln!(f, "Max              | {}", self.max)?;
         writeln!(f, "___________________________________________")?;
-        if self.distribution.len() <= 200 {
-            writeln!(f, "Distribution (ordered):")?;
-            writeln!(f, "{:?}", self.distribution)?;
-        } else {
-            writeln!(
-                f,
-                "Distribution cannot be displayed, length exceeding the limit"
-            )?;
+        if self.n_ok >= 12 {
+            writeln!(f, "Distribution of percentiles:")?;
+            for (level, percentile) in self.percentiles.iter() {
+                writeln!(f, "{}%    {}", level, percentile)?;
+            }
         }
         writeln!(f, "___________________________________________")
     }
@@ -151,13 +172,21 @@ impl Stats {
         let mut durations = Vec::with_capacity(collected_stats.results.len());
         let mut errors = HashMap::new();
         let mut n_errors = 0;
+        let mut time_series = Vec::with_capacity(collected_stats.results.len());
 
         let get_duration =
-            |duration: &Duration| -> f64 { collected_stats.duration_unit.elapsed(duration) };
+            |duration: &Duration| -> f64 { collected_stats.duration_scale.elapsed(duration) };
 
         for result in collected_stats.results.iter() {
             match result {
-                RequestResult::Ok(duration) => durations.push(get_duration(duration)),
+                RequestResult::Ok(duration_point) => {
+                    let request_duration = get_duration(&duration_point.request_duration);
+                    durations.push(request_duration);
+                    let duration_since_start = get_duration(&duration_point.duration_since_start);
+                    time_series.push((duration_since_start, request_duration));
+                    let duration_request_end = get_duration(&duration_point.duration_request_end);
+                    time_series.push((duration_request_end, 0.0));
+                }
                 RequestResult::Failed(status_code) => {
                     errors
                         .entry(status_code)
@@ -188,7 +217,15 @@ impl Stats {
         let min = *durations.first().unwrap();
         let max = *durations.last().unwrap();
 
+        let percentiles: Vec<(f64, f64)> = [
+            0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99,
+        ]
+        .into_iter()
+        .map(|level| (level * 100.0, percentile(&durations, level, n as f64)))
+        .collect();
+
         Some(Stats {
+            scale: collected_stats.duration_scale.clone(),
             total: sum,
             mean,
             median,
@@ -200,6 +237,8 @@ impl Stats {
             distribution: durations,
             n_errors,
             n_ok: n - n_errors,
+            time_series,
+            percentiles,
         })
     }
 }

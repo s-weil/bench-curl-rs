@@ -11,7 +11,7 @@ use stats::{Stats, StatsCollector};
 use std::time::Instant;
 
 pub use config::BenchConfig;
-pub use plots::plot;
+pub use plots::plot_stats;
 
 pub struct BenchClient {
     request_factory: RequestFactory,
@@ -30,17 +30,20 @@ impl BenchClient {
 
     fn timed_request(
         &self,
+        timer: &Instant,
         request: &blocking::RequestBuilder,
         stats_collector: &mut StatsCollector,
     ) {
         let request = request.try_clone().unwrap();
+        let measurement_start = timer.elapsed();
         let start = Instant::now();
 
         match request.send() {
             Ok(response) => {
                 // TODO: better way of measuring the time?
                 let duration = start.elapsed();
-                stats_collector.add(response, duration);
+                let measurement_end = timer.elapsed();
+                stats_collector.add(measurement_start, measurement_end, duration, response);
             }
             Err(error) => {
                 error!("Error during sending request: {:?}", error);
@@ -67,17 +70,18 @@ impl BenchClient {
                 for _ in 0..self.config.warmup_runs() {
                     // Trigger a first few requests, possibly to populate a cache or similiar
                     info!("Warm-up run");
-                    if let Err(error) = request.try_clone().unwrap().send() {
+                    if let Err(error) = dbg!(request.try_clone().unwrap().send()) {
                         error!("Warm up failed: {:?}", error);
                         return None;
                     }
                 }
                 info!(
-                    "Starting measurement of {} samples to {}",
+                    "Starting measurement of {} samples from {}",
                     n_runs, self.config.url
                 );
+                let timer = Instant::now();
                 for _ in 0..n_runs {
-                    self.timed_request(&request, &mut stats_collector);
+                    self.timed_request(&timer, &request, &mut stats_collector);
                 }
             }
             ConcurrenyLevel::Concurrent(_level) => {

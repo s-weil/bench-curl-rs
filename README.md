@@ -1,16 +1,17 @@
 # bURL (benchmarking-curl-rs)
 
-Statistics-driven benchmarking of http-webapplications, in Rust.
+Statistics-driven benchmarking and load generation of http-webapplications, in Rust.
 
 <img src="./examples/box_plot.jpg" width="700" height="600" />
+<img src="./examples/durations_timeseries.png" width="700" height="500" />
 
 
 ### TODO:
+* iteration support for proper benchmarking
+* split config
 * stats-extension:
-    * dump also a table of stats into the results folder
-    * plot timeseries of requests and durations
-    * histogram
-    * distribution
+    * dump also a table of stats and the raw results into the results folder 
+    * plot confidence interval
 * tokio support (tbd)
 * rayon support
 * -> support jupityer notebooks! via python api
