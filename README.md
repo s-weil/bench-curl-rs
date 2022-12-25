@@ -1,9 +1,9 @@
-# bURL (benchmarking-curl-rs)
+![Burl-rs](./resources/burl_logo.png)
 
-Statistics-driven benchmarking and load generation of http-webapplications, in Rust.
+Burl-rs is a statistics-driven benchmarking tool and load generator for http-webapplications, in Rust.
 
-<img src="./examples/box_plot.jpg" width="700" height="600" />
-<img src="./examples/durations_timeseries.png" width="700" height="500" />
+<img src="./resources/box_plot.jpg" width="700" height="600" />
+<img src="./resources/durations_timeseries.png" width="700" height="500" />
 
 
 ### TODO:
