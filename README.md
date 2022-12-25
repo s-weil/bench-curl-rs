@@ -1,4 +1,4 @@
-![Burl-rs](./resources/burl_logo.png)
+![Burl-rs](./resources/burl_logo.svg)
 
 Burl-rs is a statistics-driven benchmarking tool and load generator for http-webapplications, in Rust.
 
