@@ -3,15 +3,15 @@ mod plots;
 mod request_factory;
 mod stats;
 
+pub use config::BenchConfig;
+pub use plots::plot_stats;
+
 use crate::config::ConcurrenyLevel;
 use log::{error, info};
 use request_factory::RequestFactory;
 use reqwest::*;
 use stats::{Stats, StatsCollector};
 use std::time::Instant;
-
-pub use config::BenchConfig;
-pub use plots::plot_stats;
 
 pub struct BenchClient {
     request_factory: RequestFactory,
@@ -20,8 +20,9 @@ pub struct BenchClient {
 
 impl BenchClient {
     pub fn init(config: BenchConfig) -> Result<Self> {
-        let request_factory =
-            request_factory::RequestFactory::new(config.disable_certificate_validation)?;
+        let request_factory = request_factory::RequestFactory::new(
+            config.disable_certificate_validation.unwrap_or_default(),
+        )?;
 
         Ok(Self {
             config,
@@ -68,9 +69,9 @@ impl BenchClient {
 
         match self.config.concurrency_level() {
             ConcurrenyLevel::Sequential => {
+                // Trigger un-timed requests, possibly to populate a cache or similiar
+                info!("Warming up");
                 for _ in 0..self.config.warmup_runs() {
-                    // Trigger a first few requests, possibly to populate a cache or similiar
-                    info!("Warm-up run");
                     if let Err(error) = request.try_clone().unwrap().send() {
                         error!("Warm up failed: {:?}", error);
                         return None;

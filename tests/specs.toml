@@ -10,7 +10,8 @@
 # url = "http://localhost:8080/ping" # actix windows
 # url = "http://0.0.0.0:8080/delayed/10" # actix
 # url = "http://0.0.0.0:8080/items/" # actix
-url = "http://0.0.0.0:8080/items/" # actix post
+# url = "http://0.0.0.0:8080/items/" # actix post
+url = "http://localhost:8080/items/" # actix post windows
 
 ## --- GET
 # method = "Get"
@@ -23,7 +24,7 @@ json_payload = """ { "name": "john doezer", "price": 10.2 }"""
 ## Auth
 # bearer_token = "1q2asdasd.asdasdasd.asd123e"
 ## Run config
-n_runs = 300 # default=500
+n_runs = 300      # default=500
 n_warmup_runs = 5 # default=0
 # concurrency_level = 1 # the default
 duration_scale = "Micro" #  Secs | Milli | Micro(Default) | Nano 
