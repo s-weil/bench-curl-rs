@@ -2,15 +2,12 @@
 name = "burl"
 version = "0.1.0"
 edition = "2021"
+author = "sweil"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-reqwest = { version = "0.11.13", features = [
-    "blocking",
-    "json",
-    "rustls-tls"
-] }
+reqwest = { version = "0.11.13", features = ["blocking", "json", "rustls-tls"] }
 serde = { version = "1.0.149", features = ["derive"] }
 log = "0.4.17"
 # plotting
