@@ -22,6 +22,7 @@ struct DurationPoint {
     duration_since_start: Duration,
     duration_request_end: Duration,
     request_duration: Duration,
+    content_length: Option<u64>,
 }
 
 enum RequestResult {
@@ -58,6 +59,7 @@ impl StatsCollector {
                 duration_since_start: measurement_start,
                 duration_request_end: measurement_end,
                 request_duration: duration,
+                content_length: response.content_length(),
             }),
             sc => {
                 warn!("Received response with status code {}", sc);
@@ -115,6 +117,7 @@ fn standard_deviation(samples: &[f64], mean: f64) -> Option<f64> {
 pub struct Stats {
     scale: DurationScale,
     pub total: f64,
+    pub total_bytes: u64,
     pub mean: f64,
     pub median: f64,
     pub quartile_fst: f64,
@@ -140,10 +143,13 @@ impl Display for Stats {
             "______________SUMMARY_[in {}s]______________",
             &self.scale
         )?;
-        writeln!(f, "Number ok        | {} ", self.n_ok)?;
-        writeln!(f, "Number failed    | {}", self.n_errors)?;
         writeln!(f, "Total Duration   | {}", self.total)?;
+        writeln!(f, "Total bytes      | {}", self.total_bytes)?;
+        writeln!(f, "Number ok        | {}", self.n_ok)?;
+        writeln!(f, "Number failed    | {}", self.n_errors)?;
         writeln!(f, "Mean             | {}", self.mean)?;
+        // writeln!(f, "Requests per sec | {}", self.mean)?;
+
         if let Some(std) = self.std {
             writeln!(f, "StdDev           | {}", std)?;
         }
@@ -170,6 +176,7 @@ impl Stats {
         }
 
         let mut durations = Vec::with_capacity(collected_stats.results.len());
+        let mut total_bytes = 0;
         let mut errors = HashMap::new();
         let mut n_errors = 0;
         let mut time_series = Vec::with_capacity(collected_stats.results.len());
@@ -186,6 +193,9 @@ impl Stats {
                     time_series.push((duration_since_start, request_duration));
                     let duration_request_end = get_duration(&duration_point.duration_request_end);
                     time_series.push((duration_request_end, 0.0));
+                    if let Some(bytes) = duration_point.content_length {
+                        total_bytes += bytes;
+                    }
                 }
                 RequestResult::Failed(status_code) => {
                     errors
@@ -209,9 +219,9 @@ impl Stats {
 
         // sort the durations for quantiles
         durations.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let quartile_fst = percentile(&durations, 0.25, n as f64);
         let median = percentile(&durations, 0.5, n as f64);
-        let quartile_trd = percentile(&durations, 0.25, n as f64);
-        let quartile_fst = percentile(&durations, 0.75, n as f64);
+        let quartile_trd = percentile(&durations, 0.75, n as f64);
 
         // NOTE: durations is sorted and of len >= 1
         let min = *durations.first().unwrap();
@@ -227,6 +237,7 @@ impl Stats {
         Some(Stats {
             scale: collected_stats.duration_scale.clone(),
             total: sum,
+            total_bytes,
             mean,
             median,
             min,
