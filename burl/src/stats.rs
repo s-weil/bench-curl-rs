@@ -18,7 +18,7 @@ impl DurationScale {
     }
 }
 
-struct DurationPoint {
+struct SampleResult {
     duration_since_start: Duration,
     duration_request_end: Duration,
     request_duration: Duration,
@@ -27,22 +27,24 @@ struct DurationPoint {
 
 enum RequestResult {
     /// Contains the status code.
-    Failed(usize), // TODO: maybe add also durations here?
+    Failed(usize),
     /// Contains the duration of the request.
-    Ok(DurationPoint),
+    Ok(SampleResult),
 }
 
-pub struct StatsCollector {
-    duration_scale: DurationScale,
+type ThreadIdx = usize;
+
+pub struct SampleCollector {
+    thread_idx: ThreadIdx,
     n_runs: usize,
     results: Vec<RequestResult>,
 }
 
-impl StatsCollector {
-    pub fn init(n_runs: usize, duration_unit: DurationScale) -> Self {
+impl SampleCollector {
+    pub fn init(thread_idx: ThreadIdx, n_runs: usize) -> Self {
         Self {
+            thread_idx,
             n_runs: 0,
-            duration_scale: duration_unit,
             results: Vec::with_capacity(n_runs),
         }
     }
@@ -55,7 +57,7 @@ impl StatsCollector {
         response: Response,
     ) {
         let result = match response.status().as_u16() as usize {
-            200 => RequestResult::Ok(DurationPoint {
+            200 => RequestResult::Ok(SampleResult {
                 duration_since_start: measurement_start,
                 duration_request_end: measurement_end,
                 request_duration: duration,
@@ -69,10 +71,6 @@ impl StatsCollector {
 
         self.results.push(result);
         self.n_runs += 1;
-    }
-
-    pub fn collect(&self) -> Option<Stats> {
-        Stats::calculate(self)
     }
 }
 
@@ -130,7 +128,7 @@ pub struct Stats {
     pub n_errors: usize,
     // TODO: provide overview of errors - tbd if actually interestering or a corner case
     // TODO: outliers
-    pub time_series: Vec<(f64, f64)>,
+    pub time_series: HashMap<ThreadIdx, Vec<(f64, f64)>>,
     /// Percentiles 1% 5% 10% 20% 30% 40% 50% 60% 70% 80% 90% 95% 99%
     percentiles: Vec<(f64, f64)>,
 }
@@ -158,8 +156,8 @@ impl Display for Stats {
         writeln!(f, "Median           | {}", self.median)?;
         writeln!(f, "Quartile 3rd     | {}", self.quartile_trd)?;
         writeln!(f, "Max              | {}", self.max)?;
-        writeln!(f, "___________________________________________")?;
         if self.n_ok >= 12 {
+            writeln!(f, "___________________________________________")?;
             writeln!(f, "Distribution of percentiles:")?;
             for (level, percentile) in self.percentiles.iter() {
                 writeln!(f, "{}%    {}", level, percentile)?;
@@ -170,43 +168,70 @@ impl Display for Stats {
 }
 
 impl Stats {
-    pub fn calculate(collected_stats: &StatsCollector) -> Option<Self> {
-        if collected_stats.n_runs == 0 || collected_stats.results.is_empty() {
-            return None;
-        }
-
-        let mut durations = Vec::with_capacity(collected_stats.results.len());
-        let mut total_bytes = 0;
+    /// Collect the sample results from the threads' samples.
+    pub fn collect<S>(samples_by_thread: &mut S, duration_scale: DurationScale) -> Option<Self>
+    where
+        S: Iterator<Item = SampleCollector>,
+    {
+        let mut durations = Vec::new();
         let mut errors = HashMap::new();
+        let mut time_series = HashMap::new();
+        let mut total_bytes = 0;
         let mut n_errors = 0;
-        let mut time_series = Vec::with_capacity(collected_stats.results.len());
 
-        let get_duration =
-            |duration: &Duration| -> f64 { collected_stats.duration_scale.elapsed(duration) };
+        let get_duration = |duration: &Duration| -> f64 { duration_scale.elapsed(duration) };
 
-        for result in collected_stats.results.iter() {
-            match result {
-                RequestResult::Ok(duration_point) => {
-                    let request_duration = get_duration(&duration_point.request_duration);
-                    durations.push(request_duration);
-                    let duration_since_start = get_duration(&duration_point.duration_since_start);
-                    time_series.push((duration_since_start, request_duration));
-                    let duration_request_end = get_duration(&duration_point.duration_request_end);
-                    time_series.push((duration_request_end, 0.0));
-                    if let Some(bytes) = duration_point.content_length {
-                        total_bytes += bytes;
+        while let Some(samples) = samples_by_thread.next() {
+            let mut thread_durations = Vec::with_capacity(samples.results.len());
+            let mut thread_time_series = Vec::with_capacity(samples.results.len());
+
+            for result in samples.results.iter() {
+                match result {
+                    RequestResult::Ok(duration_point) => {
+                        let request_duration = get_duration(&duration_point.request_duration);
+                        thread_durations.push(request_duration);
+                        let duration_since_start =
+                            get_duration(&duration_point.duration_since_start);
+                        thread_time_series.push((duration_since_start, request_duration));
+                        let duration_request_end =
+                            get_duration(&duration_point.duration_request_end);
+                        thread_time_series.push((duration_request_end, 0.0));
+                        if let Some(bytes) = duration_point.content_length {
+                            total_bytes += bytes;
+                        }
+                    }
+                    RequestResult::Failed(status_code) => {
+                        errors
+                            .entry(*status_code)
+                            .and_modify(|count| *count += 1)
+                            .or_insert(1);
+                        n_errors += 1;
                     }
                 }
-                RequestResult::Failed(status_code) => {
-                    errors
-                        .entry(status_code)
-                        .and_modify(|count| *count += 1)
-                        .or_insert(1);
-                    n_errors += 1;
-                }
             }
+
+            durations.extend(thread_durations);
+            time_series.insert(samples.thread_idx, thread_time_series);
         }
 
+        Self::calculate(
+            duration_scale,
+            n_errors,
+            total_bytes,
+            durations,
+            time_series,
+            errors,
+        )
+    }
+
+    pub fn calculate(
+        scale: DurationScale,
+        n_errors: usize,
+        total_bytes: u64,
+        mut durations: Vec<f64>,
+        time_series: HashMap<ThreadIdx, Vec<(f64, f64)>>,
+        errors: HashMap<usize, i32>,
+    ) -> Option<Self> {
         let n = durations.len();
         if n == 0 {
             warn!("Measurement yielded no valid results.");
@@ -235,7 +260,7 @@ impl Stats {
         .collect();
 
         Some(Stats {
-            scale: collected_stats.duration_scale.clone(),
+            scale,
             total: sum,
             total_bytes,
             mean,
@@ -252,6 +277,89 @@ impl Stats {
             percentiles,
         })
     }
+
+    // pub fn calculate(collected_stats: &SampleCollector) -> Option<Self> {
+    //     if collected_stats.n_runs == 0 || collected_stats.results.is_empty() {
+    //         return None;
+    //     }
+
+    //     let mut durations = Vec::with_capacity(collected_stats.results.len());
+    //     let mut total_bytes = 0;
+    //     let mut errors = HashMap::new();
+    //     let mut n_errors = 0;
+    //     let mut time_series = Vec::with_capacity(collected_stats.results.len());
+
+    //     let get_duration =
+    //         |duration: &Duration| -> f64 { collected_stats.duration_scale.elapsed(duration) };
+
+    //     for result in collected_stats.results.iter() {
+    //         match result {
+    //             RequestResult::Ok(duration_point) => {
+    //                 let request_duration = get_duration(&duration_point.request_duration);
+    //                 durations.push(request_duration);
+    //                 let duration_since_start = get_duration(&duration_point.duration_since_start);
+    //                 time_series.push((duration_since_start, request_duration));
+    //                 let duration_request_end = get_duration(&duration_point.duration_request_end);
+    //                 time_series.push((duration_request_end, 0.0));
+    //                 if let Some(bytes) = duration_point.content_length {
+    //                     total_bytes += bytes;
+    //                 }
+    //             }
+    //             RequestResult::Failed(status_code) => {
+    //                 errors
+    //                     .entry(status_code)
+    //                     .and_modify(|count| *count += 1)
+    //                     .or_insert(1);
+    //                 n_errors += 1;
+    //             }
+    //         }
+    //     }
+
+    //     let n = durations.len();
+    //     if n == 0 {
+    //         warn!("Measurement yielded no valid results.");
+    //         return None;
+    //     }
+
+    //     let sum = sum(&durations);
+    //     let mean = sum / (n as f64);
+    //     let std = standard_deviation(&durations, mean);
+
+    //     // sort the durations for quantiles
+    //     durations.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    //     let quartile_fst = percentile(&durations, 0.25, n as f64);
+    //     let median = percentile(&durations, 0.5, n as f64);
+    //     let quartile_trd = percentile(&durations, 0.75, n as f64);
+
+    //     // NOTE: durations is sorted and of len >= 1
+    //     let min = *durations.first().unwrap();
+    //     let max = *durations.last().unwrap();
+
+    //     let percentiles: Vec<(f64, f64)> = [
+    //         0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99,
+    //     ]
+    //     .into_iter()
+    //     .map(|level| (level * 100.0, percentile(&durations, level, n as f64)))
+    //     .collect();
+
+    //     Some(Stats {
+    //         scale: collected_stats.duration_scale.clone(),
+    //         total: sum,
+    //         total_bytes,
+    //         mean,
+    //         median,
+    //         min,
+    //         max,
+    //         std,
+    //         quartile_fst,
+    //         quartile_trd,
+    //         distribution: durations,
+    //         n_errors,
+    //         n_ok: n - n_errors,
+    //         time_series,
+    //         percentiles,
+    //     })
+    // }
 }
 
 #[cfg(test)]

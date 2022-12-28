@@ -11,13 +11,13 @@ use crate::config::ConcurrenyLevel;
 use log::{error, info};
 use request_factory::RequestFactory;
 use reqwest::*;
-use stats::{Stats, StatsCollector};
-use std::time::Instant;
+use stats::{SampleCollector, Stats};
+use std::{borrow::BorrowMut, time::Instant};
 
 fn timed_request(
     timer: Instant,
     request: &blocking::RequestBuilder,
-    stats_collector: &mut StatsCollector,
+    stats_collector: &mut SampleCollector,
 ) {
     let request = request.try_clone().unwrap();
     let measurement_start = timer.elapsed();
@@ -37,12 +37,12 @@ fn timed_request(
 }
 
 fn collect_samples(
+    thread_idx: usize,
     request_builder: blocking::RequestBuilder,
     n_runs: usize,
-    duration_scale: DurationScale,
-) -> StatsCollector {
+) -> SampleCollector {
     let timer = Instant::now();
-    let mut stats_collector = StatsCollector::init(n_runs, duration_scale);
+    let mut stats_collector = SampleCollector::init(thread_idx, n_runs);
 
     for _ in 0..n_runs {
         timed_request(timer, &request_builder, &mut stats_collector);
@@ -89,45 +89,40 @@ impl BenchClient {
             }
         }
 
-        info!(
-            "Starting measurement of {} samples from {} (concurrency level {})",
-            n_runs,
-            self.config.url,
-            1 // TODO
-        );
-
-        match self.config.concurrency_level() {
+        let stats = match self.config.concurrency_level() {
             ConcurrenyLevel::Sequential => {
-                collect_samples(request_builder, n_runs, du);
+                info!(
+                    "Starting measurement of {} samples from {}",
+                    n_runs, self.config.url,
+                );
+                let sc = collect_samples(0, request_builder, n_runs);
+                Stats::collect(&mut vec![sc].into_iter(), du)
             }
             ConcurrenyLevel::Concurrent(n_threads) => {
                 // TODO: should we divide n-runs?
-                let mut stats_by_thread = Vec::with_capacity(n_threads);
+                info!(
+                    "Starting measurement of {} samples (on each of {} threads) from {}",
+                    n_runs, n_threads, self.config.url
+                );
+                let mut samples_by_thread = Vec::with_capacity(n_threads);
                 // NOTE: cannot use rayon due to unsatisfied trait bounds
-                for _ in 0..n_threads.max(1) {
-                    info!("started new thread");
-
+                for thread_idx in 0..n_threads.max(1) {
                     let request_builder = request_builder.try_clone().unwrap();
-                    let duration_scale = du.clone();
-
                     let sampler = std::thread::spawn(move || {
-                        collect_samples(request_builder, n_runs, duration_scale)
+                        collect_samples(thread_idx, request_builder, n_runs)
                     });
 
-                    stats_by_thread.push(sampler);
+                    samples_by_thread.push(sampler);
                 }
 
-                for sampler in stats_by_thread {
-                    let stats = sampler.join().unwrap().collect();
-                    // TODO: merge stats, careful with max time etc
-                }
+                let mut samples = samples_by_thread
+                    .into_iter()
+                    .map(|sampler| sampler.join().unwrap());
 
-                // TODO: what to do with the timeseries graph?
+                Stats::collect(&mut samples, du)
             }
-        }
+        };
 
-        None
-        // let guard = stats_collector.lock().unwrap();
-        // guard.collect()
+        stats
     }
 }

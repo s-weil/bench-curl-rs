@@ -129,18 +129,22 @@ fn plot_histogram(stats: &Stats, output_path: &Option<PathBuf>) {
 fn plot_time_series(stats: &Stats, output_path: &Option<PathBuf>) {
     let mut plot = Plot::new();
 
-    let mut ts_dates: Vec<f64> = Vec::with_capacity(stats.time_series.len());
-    let mut ts_values = Vec::with_capacity(stats.time_series.len());
+    for (thread_idx, ts) in stats.time_series.iter() {
+        let mut ts_dates: Vec<f64> = Vec::with_capacity(ts.len());
+        let mut ts_values = Vec::with_capacity(ts.len());
 
-    for (date, value) in stats.time_series.iter() {
-        ts_dates.push(*date);
-        ts_values.push(*value);
+        for (date, value) in ts.iter() {
+            ts_dates.push(*date);
+            ts_values.push(*value);
+        }
+
+        let trace_ts = Scatter::new(ts_dates, ts_values)
+            // .name(thread_idx.as_str())
+            // TODO: add color
+            .mode(Mode::LinesMarkers)
+            .line(Line::new().shape(LineShape::Hv));
+        plot.add_trace(trace_ts);
     }
-
-    let trace_ts = Scatter::new(ts_dates, ts_values)
-        .mode(Mode::LinesMarkers)
-        .line(Line::new().shape(LineShape::Hv));
-    plot.add_trace(trace_ts);
 
     let ts_layout = Layout::new()
         .title(Title::new("Durations time series"))
