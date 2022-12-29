@@ -133,7 +133,7 @@ fn standard_deviation(samples: &[f64], mean: f64) -> Option<f64> {
 pub struct ThreadStats {
     // pub total: f64,
     pub total_bytes: u64,
-    durations: Vec<f64>,
+    pub durations: Vec<f64>,
     // collection of start/end time of the sample from start of the measurement with the duration
     pub time_series: Vec<TimeSeriesPoint>,
     errors: HashMap<StatusCode, i32>,
@@ -161,8 +161,8 @@ impl From<SampleCollector> for ThreadStats {
                         duration_since_start,
                         request_duration,
                     )));
-                    let duration_request_end = get_duration(&duration_point.duration_request_end);
-                    time_series.push(TimeSeriesPoint::End(duration_request_end));
+                    // let duration_request_end = get_duration(&duration_point.duration_request_end);
+                    // time_series.push(TimeSeriesPoint::End(duration_request_end));
                     if let Some(bytes) = duration_point.content_length {
                         total_bytes += bytes;
                     }

@@ -3,7 +3,7 @@ use log::info;
 use plotly::box_plot::BoxPoints;
 use plotly::common::{Line, LineShape, Marker, Mode, Title};
 use plotly::histogram::HistNorm;
-use plotly::layout::{Axis, BoxMode, Layout};
+use plotly::layout::{Axis, BarMode, BoxMode, Layout};
 use plotly::{BoxPlot, Histogram, NamedColor, Plot, Rgb, Scatter};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -69,7 +69,7 @@ fn rgb_color(thread_idx: usize, n_threads: usize) -> Rgb {
     let max = 255;
     let step_size = (max - min) / n_threads;
     let scale = (min + thread_idx * step_size) as u8;
-    Rgb::new(0, 0, scale)
+    Rgb::new(scale, min as u8, scale)
 }
 
 fn plot_box_plot(stats: Stats, output_path: &Option<PathBuf>) {
@@ -112,19 +112,37 @@ fn plot_histogram(stats: &Stats, output_path: &Option<PathBuf>) {
     let mut plot = Plot::new();
 
     let layout = Layout::new()
+        .bar_mode(BarMode::Overlay)
         .title(Title::new("Durations frequency distribution"))
         .x_axis(Axis::new().title(Title::new("durations")).zero_line(true))
         .y_axis(Axis::new().title(Title::new("frequency")).zero_line(true));
     plot.set_layout(layout);
 
-    let trace_histogram = Histogram::new(stats.durations.clone())
-        .hist_norm(HistNorm::Probability)
-        .name("h")
-        .opacity(0.6)
-        .marker(Marker::new().color(NamedColor::Blue))
-        .n_bins_x(stats.n_ok / 5_usize);
+    // TODO: improve on n buckets, size, and overlay
 
-    plot.add_trace(trace_histogram);
+    let n_buckets = 20; // stats.n_ok / 10_usize
+
+    let total_histogram = Histogram::new(stats.durations.clone())
+        .hist_norm(HistNorm::Probability)
+        .name("total")
+        // .opacity(0.2)
+        .marker(Marker::new().color(NamedColor::Blue))
+        .n_bins_x(n_buckets);
+
+    plot.add_trace(total_histogram);
+
+    if stats.stats_by_thread.len() > 1 {
+        for (thread_idx, thread_stats) in stats.stats_by_thread.iter() {
+            let thread_color = rgb_color(*thread_idx, stats.stats_by_thread.len());
+            let thread_hist = Histogram::new(thread_stats.durations.clone())
+                .name(thread_idx.to_string().as_str())
+                .hist_norm(HistNorm::Probability)
+                .opacity(0.5)
+                .marker(Marker::new().color(thread_color))
+                .n_bins_x(n_buckets);
+            plot.add_trace(thread_hist)
+        }
+    }
 
     if let Some(path) = output_path {
         let file_name = path.join("durations_histogram.html");
