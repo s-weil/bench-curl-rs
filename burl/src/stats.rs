@@ -25,6 +25,21 @@ struct SampleResult {
     content_length: Option<u64>,
 }
 
+#[derive(Debug)]
+pub enum TimeSeriesPoint {
+    Start((f64, f64)),
+    End(f64),
+}
+
+impl TimeSeriesPoint {
+    pub fn as_graph_point(&self) -> (f64, f64) {
+        match self {
+            TimeSeriesPoint::Start((time, duration)) => (*time, *duration),
+            TimeSeriesPoint::End(time) => (*time, 0.0),
+        }
+    }
+}
+
 enum RequestResult {
     /// Contains the status code.
     Failed(usize),
@@ -33,16 +48,19 @@ enum RequestResult {
 }
 
 type ThreadIdx = usize;
+type StatusCode = usize;
 
 pub struct SampleCollector {
+    duration_scale: DurationScale,
     thread_idx: ThreadIdx,
     n_runs: usize,
     results: Vec<RequestResult>,
 }
 
 impl SampleCollector {
-    pub fn init(thread_idx: ThreadIdx, n_runs: usize) -> Self {
+    pub fn init(thread_idx: ThreadIdx, n_runs: usize, duration_scale: DurationScale) -> Self {
         Self {
+            duration_scale,
             thread_idx,
             n_runs: 0,
             results: Vec::with_capacity(n_runs),
@@ -112,6 +130,64 @@ fn standard_deviation(samples: &[f64], mean: f64) -> Option<f64> {
 }
 
 #[derive(Debug)]
+pub struct ThreadStats {
+    // pub total: f64,
+    pub total_bytes: u64,
+    durations: Vec<f64>,
+    // collection of start/end time of the sample from start of the measurement with the duration
+    pub time_series: Vec<TimeSeriesPoint>,
+    errors: HashMap<StatusCode, i32>,
+    pub n_errors: usize,
+}
+
+impl From<SampleCollector> for ThreadStats {
+    fn from(samples: SampleCollector) -> Self {
+        let mut durations = Vec::with_capacity(samples.n_runs);
+        let mut errors = HashMap::new();
+        let mut time_series: Vec<TimeSeriesPoint> = Vec::with_capacity(2 * samples.n_runs);
+        let mut total_bytes = 0;
+        let mut n_errors = 0;
+
+        let get_duration =
+            |duration: &Duration| -> f64 { samples.duration_scale.elapsed(duration) };
+
+        for result in samples.results.iter() {
+            match result {
+                RequestResult::Ok(duration_point) => {
+                    let request_duration = get_duration(&duration_point.request_duration);
+                    durations.push(request_duration);
+                    let duration_since_start = get_duration(&duration_point.duration_since_start);
+                    time_series.push(TimeSeriesPoint::Start((
+                        duration_since_start,
+                        request_duration,
+                    )));
+                    let duration_request_end = get_duration(&duration_point.duration_request_end);
+                    time_series.push(TimeSeriesPoint::End(duration_request_end));
+                    if let Some(bytes) = duration_point.content_length {
+                        total_bytes += bytes;
+                    }
+                }
+                RequestResult::Failed(status_code) => {
+                    errors
+                        .entry(*status_code)
+                        .and_modify(|count| *count += 1)
+                        .or_insert(1);
+                    n_errors += 1;
+                }
+            }
+        }
+
+        Self {
+            total_bytes,
+            durations,
+            time_series,
+            errors,
+            n_errors,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Stats {
     scale: DurationScale,
     pub total: f64,
@@ -123,12 +199,13 @@ pub struct Stats {
     pub min: f64,
     pub max: f64,
     pub std: Option<f64>,
-    pub distribution: Vec<f64>,
+    pub durations: Vec<f64>,
     pub n_ok: usize,
     pub n_errors: usize,
+
+    pub stats_by_thread: HashMap<ThreadIdx, ThreadStats>,
     // TODO: provide overview of errors - tbd if actually interestering or a corner case
     // TODO: outliers
-    pub time_series: HashMap<ThreadIdx, Vec<(f64, f64)>>,
     /// Percentiles 1% 5% 10% 20% 30% 40% 50% 60% 70% 80% 90% 95% 99%
     percentiles: Vec<(f64, f64)>,
 }
@@ -174,44 +251,19 @@ impl Stats {
         S: Iterator<Item = SampleCollector>,
     {
         let mut durations = Vec::new();
-        let mut errors = HashMap::new();
-        let mut time_series = HashMap::new();
+        let mut stats_by_thread = HashMap::new();
         let mut total_bytes = 0;
         let mut n_errors = 0;
 
-        let get_duration = |duration: &Duration| -> f64 { duration_scale.elapsed(duration) };
-
         while let Some(samples) = samples_by_thread.next() {
-            let mut thread_durations = Vec::with_capacity(samples.results.len());
-            let mut thread_time_series = Vec::with_capacity(samples.results.len());
+            let idx = samples.thread_idx;
+            let thread_stats: ThreadStats = samples.into();
 
-            for result in samples.results.iter() {
-                match result {
-                    RequestResult::Ok(duration_point) => {
-                        let request_duration = get_duration(&duration_point.request_duration);
-                        thread_durations.push(request_duration);
-                        let duration_since_start =
-                            get_duration(&duration_point.duration_since_start);
-                        thread_time_series.push((duration_since_start, request_duration));
-                        let duration_request_end =
-                            get_duration(&duration_point.duration_request_end);
-                        thread_time_series.push((duration_request_end, 0.0));
-                        if let Some(bytes) = duration_point.content_length {
-                            total_bytes += bytes;
-                        }
-                    }
-                    RequestResult::Failed(status_code) => {
-                        errors
-                            .entry(*status_code)
-                            .and_modify(|count| *count += 1)
-                            .or_insert(1);
-                        n_errors += 1;
-                    }
-                }
-            }
+            n_errors += thread_stats.n_errors;
+            total_bytes += thread_stats.total_bytes;
 
-            durations.extend(thread_durations);
-            time_series.insert(samples.thread_idx, thread_time_series);
+            durations.extend(thread_stats.durations.clone());
+            stats_by_thread.insert(idx, thread_stats);
         }
 
         Self::calculate(
@@ -219,8 +271,7 @@ impl Stats {
             n_errors,
             total_bytes,
             durations,
-            time_series,
-            errors,
+            stats_by_thread,
         )
     }
 
@@ -229,8 +280,7 @@ impl Stats {
         n_errors: usize,
         total_bytes: u64,
         mut durations: Vec<f64>,
-        time_series: HashMap<ThreadIdx, Vec<(f64, f64)>>,
-        errors: HashMap<usize, i32>,
+        stats_by_thread: HashMap<ThreadIdx, ThreadStats>,
     ) -> Option<Self> {
         let n = durations.len();
         if n == 0 {
@@ -261,6 +311,7 @@ impl Stats {
 
         Some(Stats {
             scale,
+            durations,
             total: sum,
             total_bytes,
             mean,
@@ -270,10 +321,9 @@ impl Stats {
             std,
             quartile_fst,
             quartile_trd,
-            distribution: durations,
             n_errors,
             n_ok: n - n_errors,
-            time_series,
+            stats_by_thread,
             percentiles,
         })
     }

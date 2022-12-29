@@ -38,11 +38,12 @@ fn timed_request(
 
 fn collect_samples(
     thread_idx: usize,
+    duration_scale: DurationScale,
     request_builder: blocking::RequestBuilder,
     n_runs: usize,
 ) -> SampleCollector {
     let timer = Instant::now();
-    let mut stats_collector = SampleCollector::init(thread_idx, n_runs);
+    let mut stats_collector = SampleCollector::init(thread_idx, n_runs, duration_scale);
 
     for _ in 0..n_runs {
         timed_request(timer, &request_builder, &mut stats_collector);
@@ -68,7 +69,7 @@ impl BenchClient {
     }
 
     pub fn start_run(&self) -> Option<Stats> {
-        let du = self.config.duration_unit();
+        let duration_scale = self.config.duration_unit();
 
         let n_runs = self.config.n_runs();
 
@@ -95,8 +96,8 @@ impl BenchClient {
                     "Starting measurement of {} samples from {}",
                     n_runs, self.config.url,
                 );
-                let sc = collect_samples(0, request_builder, n_runs);
-                Stats::collect(&mut vec![sc].into_iter(), du)
+                let sc = collect_samples(0, duration_scale.clone(), request_builder, n_runs);
+                Stats::collect(&mut vec![sc].into_iter(), duration_scale)
             }
             ConcurrenyLevel::Concurrent(n_threads) => {
                 // TODO: should we divide n-runs?
@@ -108,8 +109,9 @@ impl BenchClient {
                 // NOTE: cannot use rayon due to unsatisfied trait bounds
                 for thread_idx in 0..n_threads.max(1) {
                     let request_builder = request_builder.try_clone().unwrap();
+                    let scale = duration_scale.clone();
                     let sampler = std::thread::spawn(move || {
-                        collect_samples(thread_idx, request_builder, n_runs)
+                        collect_samples(thread_idx, scale, request_builder, n_runs)
                     });
 
                     samples_by_thread.push(sampler);
@@ -119,7 +121,7 @@ impl BenchClient {
                     .into_iter()
                     .map(|sampler| sampler.join().unwrap());
 
-                Stats::collect(&mut samples, du)
+                Stats::collect(&mut samples, duration_scale)
             }
         };
 

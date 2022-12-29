@@ -69,7 +69,7 @@ fn rgb_color(thread_idx: usize, n_threads: usize) -> Rgb {
     let max = 255;
     let step_size = (max - min) / n_threads;
     let scale = (min + thread_idx * step_size) as u8;
-    Rgb::new(scale, scale, scale)
+    Rgb::new(0, 0, scale)
 }
 
 fn plot_box_plot(stats: Stats, output_path: &Option<PathBuf>) {
@@ -85,7 +85,7 @@ fn plot_box_plot(stats: Stats, output_path: &Option<PathBuf>) {
         .box_mode(BoxMode::Group);
     plot.set_layout(box_plot_layout);
 
-    let trace_durations_box_plot = BoxPlot::new(stats.distribution)
+    let trace_durations_box_plot = BoxPlot::new(stats.durations)
         .name("")
         .jitter(0.7)
         .point_pos(-1.8)
@@ -117,7 +117,7 @@ fn plot_histogram(stats: &Stats, output_path: &Option<PathBuf>) {
         .y_axis(Axis::new().title(Title::new("frequency")).zero_line(true));
     plot.set_layout(layout);
 
-    let trace_histogram = Histogram::new(stats.distribution.clone())
+    let trace_histogram = Histogram::new(stats.durations.clone())
         .hist_norm(HistNorm::Probability)
         .name("h")
         .opacity(0.6)
@@ -137,16 +137,18 @@ fn plot_histogram(stats: &Stats, output_path: &Option<PathBuf>) {
 fn plot_time_series(stats: &Stats, output_path: &Option<PathBuf>) {
     let mut plot = Plot::new();
 
-    for (thread_idx, ts) in stats.time_series.iter() {
+    for (thread_idx, ts) in stats.stats_by_thread.iter() {
+        let ts = &ts.time_series;
         let mut ts_dates: Vec<f64> = Vec::with_capacity(ts.len());
         let mut ts_values = Vec::with_capacity(ts.len());
 
-        for (date, value) in ts.iter() {
-            ts_dates.push(*date);
-            ts_values.push(*value);
+        for ts_point in ts.iter() {
+            let (time, v) = ts_point.as_graph_point();
+            ts_dates.push(time);
+            ts_values.push(v);
         }
 
-        let thread_color = rgb_color(*thread_idx, stats.time_series.len());
+        let thread_color = rgb_color(*thread_idx, stats.stats_by_thread.len());
 
         let trace_ts = Scatter::new(ts_dates, ts_values)
             .name(thread_idx.to_string().as_str())
