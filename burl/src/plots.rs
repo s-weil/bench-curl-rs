@@ -64,6 +64,14 @@ pub fn plot_stats(stats: Stats, output_path: Option<String>) {
     plot_box_plot(stats, &plot_dir);
 }
 
+fn rgb_color(thread_idx: usize, n_threads: usize) -> Rgb {
+    let min = 50;
+    let max = 255;
+    let step_size = (max - min) / n_threads;
+    let scale = (min + thread_idx * step_size) as u8;
+    Rgb::new(scale, scale, scale)
+}
+
 fn plot_box_plot(stats: Stats, output_path: &Option<PathBuf>) {
     // let trace = Histogram::new(stats.distribution).name("h");
     let mut plot = Plot::new();
@@ -138,11 +146,13 @@ fn plot_time_series(stats: &Stats, output_path: &Option<PathBuf>) {
             ts_values.push(*value);
         }
 
+        let thread_color = rgb_color(*thread_idx, stats.time_series.len());
+
         let trace_ts = Scatter::new(ts_dates, ts_values)
-            // .name(thread_idx.as_str())
-            // TODO: add color
+            .name(thread_idx.to_string().as_str())
             .mode(Mode::LinesMarkers)
-            .line(Line::new().shape(LineShape::Hv));
+            .line(Line::new().shape(LineShape::Hv))
+            .marker(Marker::new().color(thread_color));
         plot.add_trace(trace_ts);
     }
 
