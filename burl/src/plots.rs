@@ -1,10 +1,10 @@
 use crate::stats::Stats;
 use log::info;
-use plotly::box_plot::BoxPoints;
+use plotly::box_plot::{BoxMean, BoxPoints};
 use plotly::common::{Line, LineShape, Marker, Mode, Title};
 use plotly::histogram::HistNorm;
-use plotly::layout::{Axis, BarMode, BoxMode, Layout};
-use plotly::{BoxPlot, Histogram, NamedColor, Plot, Rgb, Scatter};
+use plotly::layout::{Axis, BarMode};
+use plotly::{BoxPlot, Histogram, Layout, NamedColor, Plot, Rgb, Scatter};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -16,17 +16,17 @@ const REPORT_TEMPLATE: &str = r#"
 </head>
 <body>
 <div>
-  <iframe src="./plots/durations_distribution.html" seamless width="800" height="600" frameBorder="0">
+  <iframe src="./plots/durations_distribution.html" seamless width="2000" height="600" frameBorder="0">
     Warning: durations_distribution.html could not be included.
   </iframe>
 </div>
 <div>
-  <iframe src="./plots/durations_histogram.html" seamless width="800" height="600" title = "histogram" frameBorder="0">
+  <iframe src="./plots/durations_histogram.html" seamless width="1200" height="600" title = "histogram" frameBorder="0">
     Warning: durations_histogram.html could not be included.
   </iframe>
 </div>
 <div>
-  <iframe src="./plots/durations_timeseries.html" seamless width="800" height="600" frameBorder="0">
+  <iframe src="./plots/durations_timeseries.html" seamless width="1200" height="600" frameBorder="0">
     Warning: durations_timeseries.html could not be included.
   </iframe>
 </div>
@@ -73,32 +73,44 @@ fn rgb_color(thread_idx: usize, n_threads: usize) -> Rgb {
 }
 
 fn plot_box_plot(stats: Stats, output_path: &Option<PathBuf>) {
-    // let trace = Histogram::new(stats.distribution).name("h");
     let mut plot = Plot::new();
-    let box_plot_layout = Layout::new()
-        .title(Title::new("Box Plot"))
+
+    let layout = Layout::new()
+        .title(Title::new("Durations Box Plot"))
         .y_axis(
             Axis::new()
-                .title(Title::new("durations [unit]"))
-                .zero_line(true),
-        )
-        .box_mode(BoxMode::Group);
-    plot.set_layout(box_plot_layout);
+                .title(Title::new("durations"))
+                .show_grid(true)
+                .zero_line(true)
+                .grid_width(1)
+                .zero_line_width(2),
+        );
 
     let trace_durations_box_plot = BoxPlot::new(stats.durations)
-        .name("")
+        .name("total")
         .jitter(0.7)
-        .point_pos(-1.8)
-        .marker(Marker::new().color(Rgb::new(7, 40, 89)))
-        .box_points(BoxPoints::All);
+        .marker(Marker::new().color(Rgb::new(7, 40, 89)).size(6))
+        .box_mean(BoxMean::StandardDeviation)
+        .box_points(BoxPoints::All)
+        .line(Line::new().width(2.0));
+
+    if stats.stats_by_thread.len() > 1 {
+        for (thread_idx, thread_stats) in stats.stats_by_thread.iter() {
+            let thread_color = rgb_color(*thread_idx, stats.stats_by_thread.len());
+            let thread_durations_box_plot = BoxPlot::new(thread_stats.durations.clone())
+                .name(thread_idx.to_string().as_str())
+                .jitter(0.7)
+                .marker(Marker::new().color(thread_color).size(6))
+                .box_mean(BoxMean::StandardDeviation)
+                .box_points(BoxPoints::All)
+                .line(Line::new().width(2.0));
+
+            plot.add_trace(thread_durations_box_plot);
+        }
+    }
+
+    plot.set_layout(layout);
     plot.add_trace(trace_durations_box_plot);
-
-    // TODO: possible to plot histogram and box in one?
-    // let trace_histogram = Histogram::new(stats.distribution)
-    //     .name("h")
-    //     .marker(Marker::new().color(NamedColor::Pink));
-
-    // plot.add_trace(trace_histogram);
 
     if let Some(path) = output_path {
         let file_name = path.join("durations_distribution.html");

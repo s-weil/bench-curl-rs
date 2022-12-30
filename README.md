@@ -12,9 +12,8 @@ Burl-rs is a statistics-driven benchmarking tool and load generator for http-web
 * stats-extension:
     * dump also a table of stats and the raw results into the results folder 
     * plot confidence interval
-* tokio support (tbd)
-* rayon support
-* -> support jupityer notebooks! via python api
+* tokio/rayon support (tbd)
+* -> support jupyter notebooks! via python api
 * input randomizer (param to folder with json_payloads)
 * functionality for A/B testing / testing different suites
 * from json / yaml
