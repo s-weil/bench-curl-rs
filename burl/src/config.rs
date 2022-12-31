@@ -77,7 +77,7 @@ impl BenchConfig {
     }
 
     pub fn n_runs(&self) -> usize {
-        self.n_runs.unwrap_or(500).max(0)
+        self.n_runs.unwrap_or(300).max(0)
     }
 
     pub fn concurrency_level(&self) -> ConcurrenyLevel {

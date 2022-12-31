@@ -1,6 +1,5 @@
 use crate::config::DurationScale;
 use log::warn;
-use reqwest::blocking::Response;
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
@@ -18,31 +17,51 @@ impl DurationScale {
     }
 }
 
-struct DurationPoint {
+struct SampleResult {
     duration_since_start: Duration,
     duration_request_end: Duration,
     request_duration: Duration,
     content_length: Option<u64>,
 }
 
-enum RequestResult {
-    /// Contains the status code.
-    Failed(usize), // TODO: maybe add also durations here?
-    /// Contains the duration of the request.
-    Ok(DurationPoint),
+#[derive(Debug)]
+pub enum TimeSeriesPoint {
+    Start((f64, f64)),
+    End(f64),
 }
 
-pub struct StatsCollector {
+impl TimeSeriesPoint {
+    pub fn as_graph_point(&self) -> (f64, f64) {
+        match self {
+            TimeSeriesPoint::Start((time, duration)) => (*time, *duration),
+            TimeSeriesPoint::End(time) => (*time, 0.0),
+        }
+    }
+}
+
+enum RequestResult {
+    /// Contains the status code.
+    Failed(usize),
+    /// Contains the duration of the request.
+    Ok(SampleResult),
+}
+
+type ThreadIdx = usize;
+type StatusCode = usize;
+
+pub struct SampleCollector {
     duration_scale: DurationScale,
+    thread_idx: ThreadIdx,
     n_runs: usize,
     results: Vec<RequestResult>,
 }
 
-impl StatsCollector {
-    pub fn init(n_runs: usize, duration_unit: DurationScale) -> Self {
+impl SampleCollector {
+    pub fn init(thread_idx: ThreadIdx, n_runs: usize, duration_scale: DurationScale) -> Self {
         Self {
+            duration_scale,
+            thread_idx,
             n_runs: 0,
-            duration_scale: duration_unit,
             results: Vec::with_capacity(n_runs),
         }
     }
@@ -52,14 +71,15 @@ impl StatsCollector {
         measurement_start: Duration,
         measurement_end: Duration,
         duration: Duration,
-        response: Response,
+        status_code: StatusCode,
+        content_length: Option<u64>,
     ) {
-        let result = match response.status().as_u16() as usize {
-            200 => RequestResult::Ok(DurationPoint {
+        let result = match status_code {
+            200 => RequestResult::Ok(SampleResult {
                 duration_since_start: measurement_start,
                 duration_request_end: measurement_end,
                 request_duration: duration,
-                content_length: response.content_length(),
+                content_length,
             }),
             sc => {
                 warn!("Received response with status code {}", sc);
@@ -69,10 +89,6 @@ impl StatsCollector {
 
         self.results.push(result);
         self.n_runs += 1;
-    }
-
-    pub fn collect(&self) -> Option<Stats> {
-        Stats::calculate(self)
     }
 }
 
@@ -114,6 +130,64 @@ fn standard_deviation(samples: &[f64], mean: f64) -> Option<f64> {
 }
 
 #[derive(Debug)]
+pub struct ThreadStats {
+    // pub total: f64,
+    pub total_bytes: u64,
+    pub durations: Vec<f64>,
+    // collection of start/end time of the sample from start of the measurement with the duration
+    pub time_series: Vec<TimeSeriesPoint>,
+    errors: HashMap<StatusCode, i32>,
+    pub n_errors: usize,
+}
+
+impl From<SampleCollector> for ThreadStats {
+    fn from(samples: SampleCollector) -> Self {
+        let mut durations = Vec::with_capacity(samples.n_runs);
+        let mut errors = HashMap::new();
+        let mut time_series: Vec<TimeSeriesPoint> = Vec::with_capacity(2 * samples.n_runs);
+        let mut total_bytes = 0;
+        let mut n_errors = 0;
+
+        let get_duration =
+            |duration: &Duration| -> f64 { samples.duration_scale.elapsed(duration) };
+
+        for result in samples.results.iter() {
+            match result {
+                RequestResult::Ok(duration_point) => {
+                    let request_duration = get_duration(&duration_point.request_duration);
+                    durations.push(request_duration);
+                    let duration_since_start = get_duration(&duration_point.duration_since_start);
+                    time_series.push(TimeSeriesPoint::Start((
+                        duration_since_start,
+                        request_duration,
+                    )));
+                    // let duration_request_end = get_duration(&duration_point.duration_request_end);
+                    // time_series.push(TimeSeriesPoint::End(duration_request_end));
+                    if let Some(bytes) = duration_point.content_length {
+                        total_bytes += bytes;
+                    }
+                }
+                RequestResult::Failed(status_code) => {
+                    errors
+                        .entry(*status_code)
+                        .and_modify(|count| *count += 1)
+                        .or_insert(1);
+                    n_errors += 1;
+                }
+            }
+        }
+
+        Self {
+            total_bytes,
+            durations,
+            time_series,
+            errors,
+            n_errors,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Stats {
     scale: DurationScale,
     pub total: f64,
@@ -125,12 +199,14 @@ pub struct Stats {
     pub min: f64,
     pub max: f64,
     pub std: Option<f64>,
-    pub distribution: Vec<f64>,
+    pub durations: Vec<f64>,
     pub n_ok: usize,
     pub n_errors: usize,
+    pub errors: HashMap<StatusCode, i32>,
+
+    pub stats_by_thread: HashMap<ThreadIdx, ThreadStats>,
     // TODO: provide overview of errors - tbd if actually interestering or a corner case
     // TODO: outliers
-    pub time_series: Vec<(f64, f64)>,
     /// Percentiles 1% 5% 10% 20% 30% 40% 50% 60% 70% 80% 90% 95% 99%
     percentiles: Vec<(f64, f64)>,
 }
@@ -158,8 +234,8 @@ impl Display for Stats {
         writeln!(f, "Median           | {}", self.median)?;
         writeln!(f, "Quartile 3rd     | {}", self.quartile_trd)?;
         writeln!(f, "Max              | {}", self.max)?;
-        writeln!(f, "___________________________________________")?;
         if self.n_ok >= 12 {
+            writeln!(f, "___________________________________________")?;
             writeln!(f, "Distribution of percentiles:")?;
             for (level, percentile) in self.percentiles.iter() {
                 writeln!(f, "{}%    {}", level, percentile)?;
@@ -170,43 +246,54 @@ impl Display for Stats {
 }
 
 impl Stats {
-    pub fn calculate(collected_stats: &StatsCollector) -> Option<Self> {
-        if collected_stats.n_runs == 0 || collected_stats.results.is_empty() {
-            return None;
-        }
-
-        let mut durations = Vec::with_capacity(collected_stats.results.len());
+    /// Collect the sample results from the threads' samples.
+    pub fn collect<S>(samples_by_thread: &mut S, duration_scale: DurationScale) -> Option<Self>
+    where
+        S: Iterator<Item = SampleCollector>,
+    {
+        let mut durations = Vec::new();
+        let mut stats_by_thread = HashMap::new();
         let mut total_bytes = 0;
-        let mut errors = HashMap::new();
         let mut n_errors = 0;
-        let mut time_series = Vec::with_capacity(collected_stats.results.len());
+        let mut errors: HashMap<StatusCode, i32> = HashMap::new();
 
-        let get_duration =
-            |duration: &Duration| -> f64 { collected_stats.duration_scale.elapsed(duration) };
+        for samples in samples_by_thread {
+            let idx = samples.thread_idx;
+            let thread_stats: ThreadStats = samples.into();
 
-        for result in collected_stats.results.iter() {
-            match result {
-                RequestResult::Ok(duration_point) => {
-                    let request_duration = get_duration(&duration_point.request_duration);
-                    durations.push(request_duration);
-                    let duration_since_start = get_duration(&duration_point.duration_since_start);
-                    time_series.push((duration_since_start, request_duration));
-                    let duration_request_end = get_duration(&duration_point.duration_request_end);
-                    time_series.push((duration_request_end, 0.0));
-                    if let Some(bytes) = duration_point.content_length {
-                        total_bytes += bytes;
-                    }
-                }
-                RequestResult::Failed(status_code) => {
-                    errors
-                        .entry(status_code)
-                        .and_modify(|count| *count += 1)
-                        .or_insert(1);
-                    n_errors += 1;
-                }
+            n_errors += thread_stats.n_errors;
+            total_bytes += thread_stats.total_bytes;
+
+            durations.extend(thread_stats.durations.clone());
+
+            for (status_code, n_errors) in thread_stats.errors.iter() {
+                errors
+                    .entry(*status_code)
+                    .and_modify(|count| *count += *n_errors)
+                    .or_insert(*n_errors);
             }
+
+            stats_by_thread.insert(idx, thread_stats);
         }
 
+        Self::calculate(
+            duration_scale,
+            n_errors,
+            total_bytes,
+            durations,
+            errors,
+            stats_by_thread,
+        )
+    }
+
+    pub fn calculate(
+        scale: DurationScale,
+        n_errors: usize,
+        total_bytes: u64,
+        mut durations: Vec<f64>,
+        errors: HashMap<StatusCode, i32>,
+        stats_by_thread: HashMap<ThreadIdx, ThreadStats>,
+    ) -> Option<Self> {
         let n = durations.len();
         if n == 0 {
             warn!("Measurement yielded no valid results.");
@@ -235,7 +322,8 @@ impl Stats {
         .collect();
 
         Some(Stats {
-            scale: collected_stats.duration_scale.clone(),
+            scale,
+            durations,
             total: sum,
             total_bytes,
             mean,
@@ -245,10 +333,10 @@ impl Stats {
             std,
             quartile_fst,
             quartile_trd,
-            distribution: durations,
             n_errors,
+            errors,
             n_ok: n - n_errors,
-            time_series,
+            stats_by_thread,
             percentiles,
         })
     }
