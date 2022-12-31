@@ -12,7 +12,7 @@ use log::{error, info};
 use request_factory::RequestFactory;
 use reqwest::*;
 use stats::{SampleCollector, Stats};
-use std::{borrow::BorrowMut, time::Instant};
+use std::time::Instant;
 
 fn timed_request(
     timer: Instant,

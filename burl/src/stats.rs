@@ -202,6 +202,7 @@ pub struct Stats {
     pub durations: Vec<f64>,
     pub n_ok: usize,
     pub n_errors: usize,
+    pub errors: HashMap<StatusCode, i32>,
 
     pub stats_by_thread: HashMap<ThreadIdx, ThreadStats>,
     // TODO: provide overview of errors - tbd if actually interestering or a corner case
@@ -254,8 +255,9 @@ impl Stats {
         let mut stats_by_thread = HashMap::new();
         let mut total_bytes = 0;
         let mut n_errors = 0;
+        let mut errors: HashMap<StatusCode, i32> = HashMap::new();
 
-        while let Some(samples) = samples_by_thread.next() {
+        for samples in samples_by_thread {
             let idx = samples.thread_idx;
             let thread_stats: ThreadStats = samples.into();
 
@@ -263,6 +265,14 @@ impl Stats {
             total_bytes += thread_stats.total_bytes;
 
             durations.extend(thread_stats.durations.clone());
+
+            for (status_code, n_errors) in thread_stats.errors.iter() {
+                errors
+                    .entry(*status_code)
+                    .and_modify(|count| *count += *n_errors)
+                    .or_insert(*n_errors);
+            }
+
             stats_by_thread.insert(idx, thread_stats);
         }
 
@@ -271,6 +281,7 @@ impl Stats {
             n_errors,
             total_bytes,
             durations,
+            errors,
             stats_by_thread,
         )
     }
@@ -280,6 +291,7 @@ impl Stats {
         n_errors: usize,
         total_bytes: u64,
         mut durations: Vec<f64>,
+        errors: HashMap<StatusCode, i32>,
         stats_by_thread: HashMap<ThreadIdx, ThreadStats>,
     ) -> Option<Self> {
         let n = durations.len();
@@ -322,94 +334,12 @@ impl Stats {
             quartile_fst,
             quartile_trd,
             n_errors,
+            errors,
             n_ok: n - n_errors,
             stats_by_thread,
             percentiles,
         })
     }
-
-    // pub fn calculate(collected_stats: &SampleCollector) -> Option<Self> {
-    //     if collected_stats.n_runs == 0 || collected_stats.results.is_empty() {
-    //         return None;
-    //     }
-
-    //     let mut durations = Vec::with_capacity(collected_stats.results.len());
-    //     let mut total_bytes = 0;
-    //     let mut errors = HashMap::new();
-    //     let mut n_errors = 0;
-    //     let mut time_series = Vec::with_capacity(collected_stats.results.len());
-
-    //     let get_duration =
-    //         |duration: &Duration| -> f64 { collected_stats.duration_scale.elapsed(duration) };
-
-    //     for result in collected_stats.results.iter() {
-    //         match result {
-    //             RequestResult::Ok(duration_point) => {
-    //                 let request_duration = get_duration(&duration_point.request_duration);
-    //                 durations.push(request_duration);
-    //                 let duration_since_start = get_duration(&duration_point.duration_since_start);
-    //                 time_series.push((duration_since_start, request_duration));
-    //                 let duration_request_end = get_duration(&duration_point.duration_request_end);
-    //                 time_series.push((duration_request_end, 0.0));
-    //                 if let Some(bytes) = duration_point.content_length {
-    //                     total_bytes += bytes;
-    //                 }
-    //             }
-    //             RequestResult::Failed(status_code) => {
-    //                 errors
-    //                     .entry(status_code)
-    //                     .and_modify(|count| *count += 1)
-    //                     .or_insert(1);
-    //                 n_errors += 1;
-    //             }
-    //         }
-    //     }
-
-    //     let n = durations.len();
-    //     if n == 0 {
-    //         warn!("Measurement yielded no valid results.");
-    //         return None;
-    //     }
-
-    //     let sum = sum(&durations);
-    //     let mean = sum / (n as f64);
-    //     let std = standard_deviation(&durations, mean);
-
-    //     // sort the durations for quantiles
-    //     durations.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    //     let quartile_fst = percentile(&durations, 0.25, n as f64);
-    //     let median = percentile(&durations, 0.5, n as f64);
-    //     let quartile_trd = percentile(&durations, 0.75, n as f64);
-
-    //     // NOTE: durations is sorted and of len >= 1
-    //     let min = *durations.first().unwrap();
-    //     let max = *durations.last().unwrap();
-
-    //     let percentiles: Vec<(f64, f64)> = [
-    //         0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99,
-    //     ]
-    //     .into_iter()
-    //     .map(|level| (level * 100.0, percentile(&durations, level, n as f64)))
-    //     .collect();
-
-    //     Some(Stats {
-    //         scale: collected_stats.duration_scale.clone(),
-    //         total: sum,
-    //         total_bytes,
-    //         mean,
-    //         median,
-    //         min,
-    //         max,
-    //         std,
-    //         quartile_fst,
-    //         quartile_trd,
-    //         distribution: durations,
-    //         n_errors,
-    //         n_ok: n - n_errors,
-    //         time_series,
-    //         percentiles,
-    //     })
-    // }
 }
 
 #[cfg(test)]
