@@ -76,7 +76,7 @@ fn plot_box_plot(stats: Stats, output_path: &Option<PathBuf>) {
     let mut plot = Plot::new();
 
     let layout = Layout::new()
-        .title(Title::new("Durations Box Plot"))
+        .title(Title::new("Durations box plot"))
         .y_axis(
             Axis::new()
                 .title(Title::new("durations"))

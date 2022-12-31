@@ -1,6 +1,5 @@
 use crate::config::DurationScale;
 use log::warn;
-use reqwest::blocking::Response;
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
@@ -72,14 +71,15 @@ impl SampleCollector {
         measurement_start: Duration,
         measurement_end: Duration,
         duration: Duration,
-        response: Response,
+        status_code: StatusCode,
+        content_length: Option<u64>,
     ) {
-        let result = match response.status().as_u16() as usize {
+        let result = match status_code {
             200 => RequestResult::Ok(SampleResult {
                 duration_since_start: measurement_start,
                 duration_request_end: measurement_end,
                 request_duration: duration,
-                content_length: response.content_length(),
+                content_length,
             }),
             sc => {
                 warn!("Received response with status code {}", sc);

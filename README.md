@@ -15,7 +15,7 @@ Burl-rs is a statistics-driven benchmarking tool and load generator for http-web
     * analyze outliers
     * bivariate metrics for comparison of runs
 * reuse connections / persistence, see e.g. https://twitter.com/mlafeldt/status/1437411223948103683 or https://users.rust-lang.org/t/hyper-reqwest-connection-not-being-kept-alive/10895/5
-* tokio/rayon support (tbd)
+* tokio support 
 * -> support jupyter notebooks! via python api
 * input randomizer (param to folder with json_payloads)
 * functionality for A/B testing / testing different suites

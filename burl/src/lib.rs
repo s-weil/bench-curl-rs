@@ -28,7 +28,16 @@ fn timed_request(
             // TODO: better way of measuring the time?
             let duration = start.elapsed();
             let measurement_end = timer.elapsed();
-            stats_collector.add(measurement_start, measurement_end, duration, response);
+            let status_code = response.status().as_u16() as usize;
+            let content_length = response.content_length();
+            drop(response);
+            stats_collector.add(
+                measurement_start,
+                measurement_end,
+                duration,
+                status_code,
+                content_length,
+            );
         }
         Err(error) => {
             error!("Error during sending request: {:?}", error);
