@@ -1,6 +1,6 @@
 use crate::BenchConfig;
 use log::{error, warn};
-use reqwest::{blocking, Result};
+use reqwest::{blocking, redirect, Result};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize)]
@@ -37,6 +37,7 @@ pub struct RequestFactory {
 impl RequestFactory {
     pub fn new(disable_certificate_validation: bool) -> Result<Self> {
         let client = blocking::ClientBuilder::new()
+            .redirect(redirect::Policy::none())
             .danger_accept_invalid_certs(disable_certificate_validation)
             .build()?;
         Ok(Self { client })
@@ -60,8 +61,6 @@ impl RequestFactory {
             _ => unimplemented!("todo"),
         };
 
-        // dbg!(&request.body());
-
         if let Some(token) = &config.bearer_token {
             request = request.bearer_auth(token);
         }
@@ -73,6 +72,9 @@ impl RequestFactory {
         } else if config.method == Method::Post {
             warn!("The method is 'POST' but no request headers are configured");
         }
+
+        // NOTE: should be redundant (as default in HTTP/1.1) but to make sure
+        request = request.header("Connection", "keep-alive");
 
         Some(request)
     }

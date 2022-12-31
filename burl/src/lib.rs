@@ -14,6 +14,7 @@ use reqwest::*;
 use stats::{SampleCollector, Stats};
 use std::time::Instant;
 
+// TODO: move to requestfactory?
 fn timed_request(
     timer: Instant,
     request: &blocking::RequestBuilder,
