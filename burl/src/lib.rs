@@ -12,19 +12,19 @@ use log::{error, info};
 use request_factory::RequestFactory;
 use reqwest::*;
 use stats::{SampleCollector, Stats};
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
 // TODO: move to requestfactory?
-fn timed_request(
-    timer: Instant,
-    request: &blocking::RequestBuilder,
+async fn timed_request(
+    timer: Arc<Instant>,
+    request: &RequestBuilder,
     stats_collector: &mut SampleCollector,
 ) {
     let request = request.try_clone().unwrap();
     let measurement_start = timer.elapsed();
     let start = Instant::now();
 
-    match request.send() {
+    match request.send().await {
         Ok(response) => {
             // TODO: better way of measuring the time?
             let duration = start.elapsed();
@@ -46,17 +46,16 @@ fn timed_request(
     }
 }
 
-fn collect_samples(
+async fn collect_samples(
     thread_idx: usize,
     duration_scale: DurationScale,
-    request_builder: blocking::RequestBuilder,
+    request_builder: RequestBuilder,
     n_runs: usize,
+    timer: Arc<Instant>,
 ) -> SampleCollector {
-    let timer = Instant::now();
     let mut stats_collector = SampleCollector::init(thread_idx, n_runs, duration_scale);
-
     for _ in 0..n_runs {
-        timed_request(timer, &request_builder, &mut stats_collector);
+        timed_request(timer.clone(), &request_builder, &mut stats_collector).await;
     }
     stats_collector
 }
@@ -78,7 +77,7 @@ impl BenchClient {
         })
     }
 
-    pub fn start_run(&self) -> Option<Stats> {
+    pub async fn start_run(&self) -> Option<Stats> {
         let duration_scale = self.config.duration_unit();
 
         let n_runs = self.config.n_runs();
@@ -94,11 +93,14 @@ impl BenchClient {
         // Trigger un-timed requests, possibly to populate a cache or similiar
         info!("Warming up");
         for _ in 0..self.config.warmup_runs() {
-            if let Err(error) = request_builder.try_clone().unwrap().send() {
+            if let Err(error) = request_builder.try_clone().unwrap().send().await {
                 error!("Warm up failed: {:?}", error);
                 return None;
             }
         }
+
+        // `global` timer over all threads
+        let timer = Arc::new(Instant::now());
 
         let stats = match self.config.concurrency_level() {
             ConcurrenyLevel::Sequential => {
@@ -106,7 +108,8 @@ impl BenchClient {
                     "Starting measurement of {} samples from {}",
                     n_runs, self.config.url,
                 );
-                let sc = collect_samples(0, duration_scale.clone(), request_builder, n_runs);
+                let sc = collect_samples(0, duration_scale.clone(), request_builder, n_runs, timer)
+                    .await;
                 Stats::collect(&mut vec![sc].into_iter(), duration_scale)
             }
             ConcurrenyLevel::Concurrent(n_threads) => {
@@ -115,23 +118,25 @@ impl BenchClient {
                     "Starting measurement of {} samples (on each of {} threads) from {}",
                     n_runs, n_threads, self.config.url
                 );
-                let mut samples_by_thread = Vec::with_capacity(n_threads);
+                let mut tasks = Vec::with_capacity(n_threads);
                 // NOTE: cannot use rayon due to unsatisfied trait bounds
                 for thread_idx in 0..n_threads.max(1) {
                     let request_builder = request_builder.try_clone().unwrap();
                     let scale = duration_scale.clone();
-                    let sampler = std::thread::spawn(move || {
-                        collect_samples(thread_idx, scale, request_builder, n_runs)
+                    let timer = timer.clone();
+                    let sampler = tokio::spawn(async move {
+                        collect_samples(thread_idx, scale, request_builder, n_runs, timer).await
                     });
 
-                    samples_by_thread.push(sampler);
+                    tasks.push(sampler);
                 }
 
-                let mut samples = samples_by_thread
-                    .into_iter()
-                    .map(|sampler| sampler.join().unwrap());
+                let mut samples_by_thread = Vec::with_capacity(n_threads);
+                for task in tasks {
+                    samples_by_thread.push(task.await.unwrap());
+                }
 
-                Stats::collect(&mut samples, duration_scale)
+                Stats::collect(&mut samples_by_thread.into_iter(), duration_scale)
             }
         };
 
