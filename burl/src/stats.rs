@@ -138,6 +138,12 @@ pub struct ThreadStats {
     pub time_series: Vec<TimeSeriesPoint>,
     errors: HashMap<StatusCode, i32>,
     pub n_errors: usize,
+
+    pub total_duration: Option<f64>,
+    pub mean: Option<f64>,
+    pub max: Option<f64>,
+    pub min: Option<f64>,
+    pub std: Option<f64>,
 }
 
 impl From<SampleCollector> for ThreadStats {
@@ -177,12 +183,29 @@ impl From<SampleCollector> for ThreadStats {
             }
         }
 
+        let n = durations.len();
+        let (total_duration, mean, std, max, min) = if n > 0 {
+            let sum = sum(&durations);
+            let mean = sum / (n as f64);
+            let std = standard_deviation(&durations, mean);
+            let max = 0.0;
+            let min = 0.0;
+            (Some(sum), Some(mean), std, Some(max), Some(min))
+        } else {
+            (None, None, None, None, None)
+        };
+
         Self {
             total_bytes,
             durations,
             time_series,
             errors,
             n_errors,
+            total_duration,
+            mean,
+            std,
+            max,
+            min,
         }
     }
 }
@@ -216,8 +239,9 @@ impl Display for Stats {
         writeln!(f)?;
         writeln!(
             f,
-            "______________SUMMARY_[in {}s]______________",
-            &self.scale
+            "__________SUMMARY_[in {}s, on {} threads]__________",
+            &self.scale,
+            &self.stats_by_thread.len()
         )?;
         writeln!(f, "Total Duration   | {}", self.total)?;
         writeln!(f, "Total bytes      | {}", self.total_bytes)?;
@@ -234,6 +258,7 @@ impl Display for Stats {
         writeln!(f, "Median           | {}", self.median)?;
         writeln!(f, "Quartile 3rd     | {}", self.quartile_trd)?;
         writeln!(f, "Max              | {}", self.max)?;
+
         if self.n_ok >= 12 {
             writeln!(f, "___________________________________________")?;
             writeln!(f, "Distribution of percentiles:")?;
@@ -241,6 +266,35 @@ impl Display for Stats {
                 writeln!(f, "{}%    {}", level, percentile)?;
             }
         }
+
+        if self.stats_by_thread.len() > 1 {
+            let format_option = |option_v: Option<f64>| {
+                if let Some(v) = option_v {
+                    v.round().to_string()
+                } else {
+                    "".to_string()
+                }
+            };
+
+            writeln!(f, "___________________________________________")?;
+            writeln!(
+                f,
+                "Thread statistics [Idx : total | mean | std | min | max]"
+            )?;
+            for (thread_idx, thread_stats) in self.stats_by_thread.iter() {
+                writeln!(
+                    f,
+                    "{}: {} | {} | {} | {} | {}",
+                    thread_idx,
+                    format_option(thread_stats.total_duration),
+                    format_option(thread_stats.mean),
+                    format_option(thread_stats.std),
+                    format_option(thread_stats.min),
+                    format_option(thread_stats.max)
+                )?;
+            }
+        }
+
         writeln!(f, "___________________________________________")
     }
 }

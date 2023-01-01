@@ -1,6 +1,6 @@
 use crate::BenchConfig;
 use log::{error, warn};
-use reqwest::{blocking, redirect, Result};
+use reqwest::{Client, ClientBuilder, RequestBuilder, Result};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize)]
@@ -31,19 +31,19 @@ pub enum Method {
 // }
 
 pub struct RequestFactory {
-    client: blocking::Client,
+    client: Client,
 }
 
 impl RequestFactory {
     pub fn new(disable_certificate_validation: bool) -> Result<Self> {
-        let client = blocking::ClientBuilder::new()
-            .redirect(redirect::Policy::none())
+        let client = ClientBuilder::new()
+            // .redirect(redirect::Policy::none())
             .danger_accept_invalid_certs(disable_certificate_validation)
             .build()?;
         Ok(Self { client })
     }
 
-    pub fn assemble_request(&self, config: &BenchConfig) -> Option<blocking::RequestBuilder> {
+    pub fn assemble_request(&self, config: &BenchConfig) -> Option<RequestBuilder> {
         let mut request = match config.method {
             Method::Get => self.client.get(&config.url),
             Method::Post => {

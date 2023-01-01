@@ -36,7 +36,8 @@ struct CliArgs {
     url: Option<String>,
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
     let log_level = std::env::var(LOG_LEVEL).unwrap_or_else(|_| DEFAULT_LEVEL.to_string());
     env_logger::Builder::from_env(Env::default().default_filter_or(&log_level)).init();
 
@@ -66,8 +67,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         trace!("initializing runner with {:?}", &specs);
         let dir = specs.results_folder.clone();
         let bencher = BenchClient::init(specs)?;
-        if let Some(stats) = bencher.start_run() {
-            // trace!("Finished. Summary figures in {:?}Secs", unit);
+        if let Some(stats) = bencher.start_run().await {
             info!("{}", stats);
             burl::plot_stats(stats, dir);
         }
