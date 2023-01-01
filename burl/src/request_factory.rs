@@ -1,10 +1,7 @@
 use crate::BenchConfig;
 use log::{error, warn};
-// use reqwest::Result;
-
 use reqwest::{Client, ClientBuilder, RequestBuilder, Result};
 use serde::{Deserialize, Serialize};
-use std::time::Instant;
 
 #[derive(Serialize)]
 struct GqlQuery<'a> {
