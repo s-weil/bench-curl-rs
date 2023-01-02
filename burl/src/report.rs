@@ -1,23 +1,24 @@
-use crate::{plots, stats::Stats};
+use crate::{plots, stats::Stats, BenchClient, BenchConfig};
 use log::{info, warn};
 use serde::Serialize;
 use std::{
     fs,
     path::{Path, PathBuf},
+    time::SystemTime,
 };
 
 const PLOT_DIR: &'static str = "plots";
 const DATA_DIR: &'static str = "data";
 
-// TODO: split stats into sample data and actual metrics/stats
-// TODO: add meta data
 #[derive(Serialize)]
-pub struct ReportData {
-    // start_time: Instant,
-    // end_time: Instant,
+struct ReportMeta {
+    // TODO: consider to change to chrono & NaiveDate
+    start_time: SystemTime,
+    end_time: SystemTime,
     // config: ...
-    stats: Stats,
 }
+
+// TODO: split stats into sample data and actual metrics/stats
 
 fn setup_report(path: &Path) -> Result<(PathBuf, PathBuf), std::io::Error> {
     if !path.exists() {
@@ -44,19 +45,47 @@ fn setup_report(path: &Path) -> Result<(PathBuf, PathBuf), std::io::Error> {
     Ok((plot_dir, data_dir))
 }
 
-fn dump_result_data(stats: &Stats, dir: PathBuf) -> Result<(), String> {
-    let json_data = stats.serialize()?;
-    let file_name = dir.join("results.json");
+fn serialize<D: Serialize>(d: &D) -> Result<String, String> {
+    let json = serde_json::to_string_pretty(d)
+        .map_err(|err| format!("Cannot serialize: {}", err.to_string()))?;
+    Ok(json)
+}
 
-    if file_name.exists() {
+/// Serializes the data, creates or updates the file and its contents.
+fn write_or_update<D: Serialize>(d: &D, file: PathBuf) -> Result<(), String> {
+    let json = serialize(d)?;
+    fs::write(file, json).map_err(|err| format!("Cannot save to file: {}", err.to_string()))?;
+    Ok(())
+}
+
+fn dump_result_data(stats: &Stats, dir: PathBuf) -> Result<(), String> {
+    let stats_file = dir.join("stats.json");
+    let samples_file = dir.join("samples.json");
+    let meta_file = dir.join("meta.json");
+
+    if stats_file.exists() | meta_file.exists() | samples_file.exists() {
+        // TODO: create a backup of earlier run
         warn!("Overwriting existing results data");
     }
 
-    // creates or updates the file and its contents
-    fs::write(file_name, json_data)
-        .map_err(|err| format!("Cannot save results: {}", err.to_string()))?;
+    let dummy_meta = ReportMeta {
+        start_time: SystemTime::now(),
+        end_time: SystemTime::now(),
+    };
+
+    // creates or updates the files and its contents
+    write_or_update(&stats, stats_file)?;
+    write_or_update(&dummy_meta, meta_file)?;
+
     Ok(())
 }
+
+// pub struct Report {
+//     config: BenchConfig,
+//     stats: Stats,
+//     start_time: SystemTime,
+//     end_time: SystemTime,
+// }
 
 pub fn create_report(stats: Stats, output_path: Option<String>) -> Result<(), String> {
     // TODO: add plotoptions with outputpath, duration scale, title etc

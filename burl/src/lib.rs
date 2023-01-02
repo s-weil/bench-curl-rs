@@ -2,64 +2,67 @@ mod config;
 mod plots;
 mod report;
 mod request_factory;
+mod sampler;
 mod stats;
 
 pub use config::BenchConfig;
-use config::DurationScale;
+pub(crate) use config::ConcurrenyLevel;
 pub use report::create_report;
+pub(crate) use sampler::SampleCollector;
+pub(crate) use stats::Stats;
 
-use crate::config::ConcurrenyLevel;
 use log::{error, info};
 use request_factory::RequestFactory;
 use reqwest::*;
-use stats::{SampleCollector, Stats};
 use std::{sync::Arc, time::Instant};
 
-// TODO: move to requestfactory?
-async fn timed_request(
-    timer: Arc<Instant>,
-    request: &RequestBuilder,
-    stats_collector: &mut SampleCollector,
-) {
-    let request = request.try_clone().unwrap();
-    let measurement_start = timer.elapsed();
-    let start = Instant::now();
+pub type ThreadIdx = usize;
 
-    match request.send().await {
-        Ok(response) => {
-            // TODO: better way of measuring the time?
-            let duration = start.elapsed();
-            let measurement_end = timer.elapsed();
-            let status_code = response.status().as_u16() as usize;
-            let content_length = response.content_length();
-            drop(response);
-            stats_collector.add(
-                measurement_start,
-                measurement_end,
-                duration,
-                status_code,
-                content_length,
-            );
-        }
-        Err(error) => {
-            error!("Error during sending request: {:?}", error);
-        }
-    }
-}
+// // TODO: move to requestfactory?
+// async fn timed_request(
+//     timer: Arc<Instant>,
+//     request: &RequestBuilder,
+//     stats_collector: &mut SampleCollector,
+// ) {
+//     let request = request.try_clone().unwrap();
+//     let measurement_start = timer.elapsed();
+//     let start = Instant::now();
 
-async fn collect_samples(
-    thread_idx: usize,
-    duration_scale: DurationScale,
-    request_builder: RequestBuilder,
-    n_runs: usize,
-    timer: Arc<Instant>,
-) -> SampleCollector {
-    let mut stats_collector = SampleCollector::init(thread_idx, n_runs, duration_scale);
-    for _ in 0..n_runs {
-        timed_request(timer.clone(), &request_builder, &mut stats_collector).await;
-    }
-    stats_collector
-}
+//     match request.send().await {
+//         Ok(response) => {
+//             // TODO: better way of measuring the time?
+//             let duration = start.elapsed();
+//             let measurement_end = timer.elapsed();
+//             let status_code = response.status().as_u16() as usize;
+//             let content_length = response.content_length();
+//             drop(response);
+//             stats_collector.add(
+//                 measurement_start,
+//                 measurement_end,
+//                 duration,
+//                 status_code,
+//                 content_length,
+//             );
+//         }
+//         Err(error) => {
+//             error!("Error during sending request: {:?}", error);
+//         }
+//     }
+// }
+
+// async fn collect_samples(
+//     thread_idx: usize,
+//     duration_scale: DurationScale,
+//     request_builder: RequestBuilder,
+//     n_runs: usize,
+//     timer: Arc<Instant>,
+// ) -> SampleCollector {
+//     let mut stats_collector = SampleCollector::init(thread_idx, n_runs, duration_scale);
+//     for _ in 0..n_runs {
+//         timed_request(timer.clone(), &request_builder, &mut stats_collector).await;
+//     }
+//     stats_collector
+// }
 
 pub struct BenchClient {
     request_factory: RequestFactory,
@@ -109,9 +112,11 @@ impl BenchClient {
                     "Starting measurement of {} samples from {}",
                     n_runs, self.config.url,
                 );
-                let sc = collect_samples(0, duration_scale.clone(), request_builder, n_runs, timer)
-                    .await;
-                Stats::collect(&mut vec![sc].into_iter(), duration_scale)
+                let mut sampler =
+                    SampleCollector::new(timer.clone(), 0, n_runs, duration_scale.clone());
+                sampler.collect_samples(request_builder).await;
+
+                Stats::collect(&mut vec![sampler].into_iter(), duration_scale)
             }
             ConcurrenyLevel::Concurrent(n_threads) => {
                 // TODO: should we divide n-runs?
@@ -123,10 +128,17 @@ impl BenchClient {
                 // NOTE: cannot use rayon due to unsatisfied trait bounds
                 for thread_idx in 0..n_threads.max(1) {
                     let request_builder = request_builder.try_clone().unwrap();
-                    let scale = duration_scale.clone();
-                    let timer = timer.clone();
+
+                    let mut sampler = SampleCollector::new(
+                        timer.clone(),
+                        thread_idx,
+                        n_runs,
+                        duration_scale.clone(),
+                    );
+
                     let sampler = tokio::spawn(async move {
-                        collect_samples(thread_idx, scale, request_builder, n_runs, timer).await
+                        sampler.collect_samples(request_builder).await;
+                        sampler
                     });
 
                     tasks.push(sampler);

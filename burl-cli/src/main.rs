@@ -54,7 +54,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
             specs
         }
-
         BenchRunnerArg::Get => {
             if let Some(url) = args.url {
                 Some(from_get_url(url))

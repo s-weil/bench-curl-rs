@@ -81,6 +81,8 @@ fn plot_histogram(stats: &Stats, output_path: &Option<PathBuf>) {
         .y_axis(Axis::new().title(Title::new("frequency")).zero_line(true));
     plot.set_layout(layout);
 
+    // TODO: consider to split total and thread histograms, the latter being stacked
+
     let n_buckets = 30;
     let bins = Bins::new(
         stats.min,

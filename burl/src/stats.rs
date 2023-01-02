@@ -1,10 +1,13 @@
-use crate::config::DurationScale;
+use crate::{
+    config::DurationScale,
+    sampler::{RequestResult, SampleCollector, StatusCode},
+    ThreadIdx,
+};
 use log::warn;
 use serde::Serialize;
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
-    path::{Path, PathBuf},
     time::Duration,
 };
 
@@ -19,12 +22,12 @@ impl DurationScale {
     }
 }
 
-struct SampleResult {
-    duration_since_start: Duration,
-    duration_request_end: Duration,
-    request_duration: Duration,
-    content_length: Option<u64>,
-}
+// struct SampleResult {
+//     duration_since_start: Duration,
+//     duration_request_end: Duration,
+//     request_duration: Duration,
+//     content_length: Option<u64>,
+// }
 
 #[derive(Debug, Serialize)]
 pub enum TimeSeriesPoint {
@@ -41,58 +44,58 @@ impl TimeSeriesPoint {
     }
 }
 
-enum RequestResult {
-    /// Contains the status code.
-    Failed(usize),
-    /// Contains the duration of the request.
-    Ok(SampleResult),
-}
+// enum RequestResult {
+//     /// Contains the status code.
+//     Failed(usize),
+//     /// Contains the duration of the request.
+//     Ok(SampleResult),
+// }
 
-type ThreadIdx = usize;
-type StatusCode = usize;
+// type ThreadIdx = usize;
+// type StatusCode = usize;
 
-pub struct SampleCollector {
-    duration_scale: DurationScale,
-    thread_idx: ThreadIdx,
-    n_runs: usize,
-    results: Vec<RequestResult>,
-}
+// pub struct SampleCollector {
+//     duration_scale: DurationScale,
+//     thread_idx: ThreadIdx,
+//     n_runs: usize,
+//     results: Vec<RequestResult>,
+// }
 
-impl SampleCollector {
-    pub fn init(thread_idx: ThreadIdx, n_runs: usize, duration_scale: DurationScale) -> Self {
-        Self {
-            duration_scale,
-            thread_idx,
-            n_runs: 0,
-            results: Vec::with_capacity(n_runs),
-        }
-    }
+// impl SampleCollector {
+//     pub fn init(thread_idx: ThreadIdx, n_runs: usize, duration_scale: DurationScale) -> Self {
+//         Self {
+//             duration_scale,
+//             thread_idx,
+//             n_runs: 0,
+//             results: Vec::with_capacity(n_runs),
+//         }
+//     }
 
-    pub fn add(
-        &mut self,
-        measurement_start: Duration,
-        measurement_end: Duration,
-        duration: Duration,
-        status_code: StatusCode,
-        content_length: Option<u64>,
-    ) {
-        let result = match status_code {
-            200 => RequestResult::Ok(SampleResult {
-                duration_since_start: measurement_start,
-                duration_request_end: measurement_end,
-                request_duration: duration,
-                content_length,
-            }),
-            sc => {
-                warn!("Received response with status code {}", sc);
-                RequestResult::Failed(sc)
-            }
-        };
+//     pub fn add(
+//         &mut self,
+//         measurement_start: Duration,
+//         measurement_end: Duration,
+//         duration: Duration,
+//         status_code: StatusCode,
+//         content_length: Option<u64>,
+//     ) {
+//         let result = match status_code {
+//             200 => RequestResult::Ok(SampleResult {
+//                 duration_since_start: measurement_start,
+//                 duration_request_end: measurement_end,
+//                 request_duration: duration,
+//                 content_length,
+//             }),
+//             sc => {
+//                 warn!("Received response with status code {}", sc);
+//                 RequestResult::Failed(sc)
+//             }
+//         };
 
-        self.results.push(result);
-        self.n_runs += 1;
-    }
-}
+//         self.results.push(result);
+//         self.n_runs += 1;
+//     }
+// }
 
 fn sum(durations: &[f64]) -> f64 {
     durations.iter().fold(0.0, |acc, dur| acc + dur)
@@ -166,7 +169,7 @@ impl From<SampleCollector> for ThreadStats {
                 RequestResult::Ok(duration_point) => {
                     let request_duration = get_duration(&duration_point.request_duration);
                     durations.push(request_duration);
-                    let duration_since_start = get_duration(&duration_point.duration_since_start);
+                    let duration_since_start = get_duration(&duration_point.duration_from_start);
                     time_series.push(TimeSeriesPoint::Start((
                         duration_since_start,
                         request_duration,
