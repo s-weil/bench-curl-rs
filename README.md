@@ -9,8 +9,9 @@ Burl-rs is a statistics-driven benchmarking tool and load generator for http-web
 ### TODO:
 * iteration support for proper benchmarking
 * split config
+* cli improvement and clarification
 * stats-extension:
-    * dump also a table of stats and the raw results into the results folder 
+    * dump also a table of stats and the raw results into the results folder, reuse results for comparison (baseline) 
     * confidence interval
     * analyze outliers
     * bivariate metrics for comparison of runs

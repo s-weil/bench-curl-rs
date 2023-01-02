@@ -5,41 +5,18 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const REPORT_TEMPLATE_PATH: &'static str = "../template.html";
 const PLOT_DIR: &'static str = "plots";
 const DATA_DIR: &'static str = "data";
-
-const REPORT_TEMPLATE: &str = r#"
-<html>
-</head>
-<body>
-<div>
-  <iframe src="./plots/durations_distribution.html" seamless width="2000" height="600" frameBorder="0">
-    Warning: durations_distribution.html could not be included.
-  </iframe>
-</div>
-<div>
-  <iframe src="./plots/durations_histogram.html" seamless width="1200" height="600" title = "histogram" frameBorder="0">
-    Warning: durations_histogram.html could not be included.
-  </iframe>
-</div>
-<div>
-  <iframe src="./plots/durations_timeseries.html" seamless width="1200" height="600" frameBorder="0">
-    Warning: durations_timeseries.html could not be included.
-  </iframe>
-</div>
-</body>
-</html>
-"#;
 
 fn setup_report(path: &Path) -> Result<(PathBuf, PathBuf), std::io::Error> {
     if !path.exists() {
         fs::create_dir(path)?;
     }
+
     let report_file = path.join("report.html");
     if !report_file.exists() {
-        // let template = include_str!(REPORT_TEMPLATE_PATH);
-        fs::write(report_file, REPORT_TEMPLATE)?;
+        let template = include_str!("../template.html");
+        fs::write(report_file, template)?;
     }
 
     let plot_dir = Path::new(&path).join(PLOT_DIR);
