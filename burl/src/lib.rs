@@ -14,55 +14,10 @@ pub(crate) use stats::Stats;
 use log::{error, info};
 use request_factory::RequestFactory;
 use reqwest::*;
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
+use tokio::time::Instant;
 
 pub type ThreadIdx = usize;
-
-// // TODO: move to requestfactory?
-// async fn timed_request(
-//     timer: Arc<Instant>,
-//     request: &RequestBuilder,
-//     stats_collector: &mut SampleCollector,
-// ) {
-//     let request = request.try_clone().unwrap();
-//     let measurement_start = timer.elapsed();
-//     let start = Instant::now();
-
-//     match request.send().await {
-//         Ok(response) => {
-//             // TODO: better way of measuring the time?
-//             let duration = start.elapsed();
-//             let measurement_end = timer.elapsed();
-//             let status_code = response.status().as_u16() as usize;
-//             let content_length = response.content_length();
-//             drop(response);
-//             stats_collector.add(
-//                 measurement_start,
-//                 measurement_end,
-//                 duration,
-//                 status_code,
-//                 content_length,
-//             );
-//         }
-//         Err(error) => {
-//             error!("Error during sending request: {:?}", error);
-//         }
-//     }
-// }
-
-// async fn collect_samples(
-//     thread_idx: usize,
-//     duration_scale: DurationScale,
-//     request_builder: RequestBuilder,
-//     n_runs: usize,
-//     timer: Arc<Instant>,
-// ) -> SampleCollector {
-//     let mut stats_collector = SampleCollector::init(thread_idx, n_runs, duration_scale);
-//     for _ in 0..n_runs {
-//         timed_request(timer.clone(), &request_builder, &mut stats_collector).await;
-//     }
-//     stats_collector
-// }
 
 pub struct BenchClient {
     request_factory: RequestFactory,

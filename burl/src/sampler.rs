@@ -1,11 +1,8 @@
 use crate::{config::DurationScale, ThreadIdx};
 use log::{error, warn};
 use reqwest::RequestBuilder;
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
-// use tokio::time::Instant; // TODO: check against std::time::Instant
+use std::{sync::Arc, time::Duration};
+use tokio::time::Instant; // TODO: check against std::time::Instant
 
 // impl DurationScale {
 //     pub fn elapsed(&self, duration: &Duration) -> f64 {
