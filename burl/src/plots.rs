@@ -1,7 +1,7 @@
 use crate::stats::Stats;
 use plotly::box_plot::{BoxMean, BoxPoints};
 use plotly::common::{Line, LineShape, Marker, Mode, Title};
-use plotly::histogram::HistNorm;
+use plotly::histogram::{Bins, HistNorm};
 use plotly::layout::{Axis, BarMode};
 use plotly::{BoxPlot, Histogram, Layout, NamedColor, Plot, Rgb, Scatter};
 use std::path::PathBuf;
@@ -81,16 +81,18 @@ fn plot_histogram(stats: &Stats, output_path: &Option<PathBuf>) {
         .y_axis(Axis::new().title(Title::new("frequency")).zero_line(true));
     plot.set_layout(layout);
 
-    // TODO: improve on n buckets, size, and overlay
-
-    let n_buckets = 20; // stats.n_ok / 10_usize
+    let n_buckets = 30;
+    let bins = Bins::new(
+        stats.min,
+        stats.max,
+        (stats.max - stats.min) / n_buckets as f64,
+    );
 
     let total_histogram = Histogram::new(stats.durations.clone())
         .hist_norm(HistNorm::Probability)
         .name("total")
-        // .opacity(0.2)
         .marker(Marker::new().color(NamedColor::Blue))
-        .n_bins_x(n_buckets);
+        .x_bins(bins.clone());
 
     plot.add_trace(total_histogram);
 
@@ -102,7 +104,7 @@ fn plot_histogram(stats: &Stats, output_path: &Option<PathBuf>) {
                 .hist_norm(HistNorm::Probability)
                 .opacity(0.5)
                 .marker(Marker::new().color(thread_color))
-                .n_bins_x(n_buckets);
+                .x_bins(bins.clone());
             plot.add_trace(thread_hist)
         }
     }

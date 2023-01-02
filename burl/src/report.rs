@@ -1,5 +1,6 @@
 use crate::{plots, stats::Stats};
 use log::{info, warn};
+use serde::Serialize;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -7,6 +8,16 @@ use std::{
 
 const PLOT_DIR: &'static str = "plots";
 const DATA_DIR: &'static str = "data";
+
+// TODO: split stats into sample data and actual metrics/stats
+// TODO: add meta data
+#[derive(Serialize)]
+pub struct ReportData {
+    // start_time: Instant,
+    // end_time: Instant,
+    // config: ...
+    stats: Stats,
+}
 
 fn setup_report(path: &Path) -> Result<(PathBuf, PathBuf), std::io::Error> {
     if !path.exists() {
