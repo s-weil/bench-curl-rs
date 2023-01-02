@@ -1,64 +1,15 @@
 use crate::stats::Stats;
-use log::info;
 use plotly::box_plot::{BoxMean, BoxPoints};
 use plotly::common::{Line, LineShape, Marker, Mode, Title};
 use plotly::histogram::HistNorm;
 use plotly::layout::{Axis, BarMode};
 use plotly::{BoxPlot, Histogram, Layout, NamedColor, Plot, Rgb, Scatter};
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// https://github.com/igiagkiozis/plotly/blob/master/examples/statistical_charts/src/main.rs///
 /// https://igiagkiozis.github.io/plotly/content/recipes/statistical_charts/box_plots.html
 
-const REPORT_TEMPLATE: &str = r#"
-<html>
-</head>
-<body>
-<div>
-  <iframe src="./plots/durations_distribution.html" seamless width="2000" height="600" frameBorder="0">
-    Warning: durations_distribution.html could not be included.
-  </iframe>
-</div>
-<div>
-  <iframe src="./plots/durations_histogram.html" seamless width="1200" height="600" title = "histogram" frameBorder="0">
-    Warning: durations_histogram.html could not be included.
-  </iframe>
-</div>
-<div>
-  <iframe src="./plots/durations_timeseries.html" seamless width="1200" height="600" frameBorder="0">
-    Warning: durations_timeseries.html could not be included.
-  </iframe>
-</div>
-</body>
-</html>
-"#;
-
-fn setup_report(output_path: Option<String>) -> Option<PathBuf> {
-    let output = output_path?;
-    let path = Path::new(&output);
-
-    if !path.exists() {
-        fs::create_dir(path).unwrap();
-    }
-    let report_file = path.join("report.html");
-    if !report_file.exists() {
-        fs::write(report_file, REPORT_TEMPLATE).unwrap();
-    }
-
-    let plot_dir = Path::new(&path).join("plots");
-    if !plot_dir.exists() {
-        fs::create_dir(&plot_dir).unwrap();
-    }
-
-    info!("Creating report in {}", output);
-    Some(plot_dir)
-}
-
-pub fn plot_stats(stats: Stats, output_path: Option<String>) {
-    // TODO: add plotoptions with outputpath, duration scale, title etc
-
-    let plot_dir = setup_report(output_path);
+pub fn plot_stats(stats: Stats, plot_dir: Option<PathBuf>) {
     plot_time_series(&stats, &plot_dir);
     plot_histogram(&stats, &plot_dir);
     plot_box_plot(stats, &plot_dir);

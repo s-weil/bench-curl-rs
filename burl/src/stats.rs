@@ -1,8 +1,10 @@
 use crate::config::DurationScale;
 use log::warn;
+use serde::Serialize;
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
+    path::{Path, PathBuf},
     time::Duration,
 };
 
@@ -24,7 +26,7 @@ struct SampleResult {
     content_length: Option<u64>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum TimeSeriesPoint {
     Start((f64, f64)),
     End(f64),
@@ -129,13 +131,15 @@ fn standard_deviation(samples: &[f64], mean: f64) -> Option<f64> {
     Some(std)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct ThreadStats {
     // pub total: f64,
     pub total_bytes: u64,
     pub durations: Vec<f64>,
     // collection of start/end time of the sample from start of the measurement with the duration
+    #[serde(skip_serializing)]
     pub time_series: Vec<TimeSeriesPoint>,
+    #[serde(skip_serializing)]
     errors: HashMap<StatusCode, i32>,
     pub n_errors: usize,
 
@@ -210,7 +214,7 @@ impl From<SampleCollector> for ThreadStats {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Stats {
     scale: DurationScale,
     pub total: f64,
@@ -225,6 +229,7 @@ pub struct Stats {
     pub durations: Vec<f64>,
     pub n_ok: usize,
     pub n_errors: usize,
+    #[serde(skip_serializing)]
     pub errors: HashMap<StatusCode, i32>,
 
     pub stats_by_thread: HashMap<ThreadIdx, ThreadStats>,
@@ -393,6 +398,12 @@ impl Stats {
             stats_by_thread,
             percentiles,
         })
+    }
+
+    pub fn serialize(&self) -> Result<String, String> {
+        let json = serde_json::to_string_pretty(&self)
+            .map_err(|err| format!("Cannot serialize results: {}", err.to_string()))?;
+        Ok(json)
     }
 }
 

@@ -1,42 +1,22 @@
 <html>
 </head>
+
 <body>
-    <div w3-include-html="durations_histogram.html"></div>
-    <div w3-include-html="durations_timeseries.html"></div>
+  <div>
+    <iframe src="./plots/durations_distribution.html" seamless width="2000" height="600" frameBorder="0">
+      Warning: durations_distribution.html could not be included.
+    </iframe>
+  </div>
+  <div>
+    <iframe src="./plots/durations_histogram.html" seamless width="1200" height="600" title="histogram" frameBorder="0">
+      Warning: durations_histogram.html could not be included.
+    </iframe>
+  </div>
+  <div>
+    <iframe src="./plots/durations_timeseries.html" seamless width="1200" height="600" frameBorder="0">
+      Warning: durations_timeseries.html could not be included.
+    </iframe>
+  </div>
 </body>
+
 </html>
-
-
-<script>
-    includeHTML();
-</script>
-
-<script>
-    function includeHTML() {
-      var z, i, elmnt, file, xhttp;
-      /* Loop through a collection of all HTML elements: */
-      z = document.getElementsByTagName("*");
-      for (i = 0; i < z.length; i++) {
-        elmnt = z[i];
-        /*search for elements with a certain atrribute:*/
-        file = elmnt.getAttribute("w3-include-html");
-        if (file) {
-          /* Make an HTTP request using the attribute value as the file name: */
-          xhttp = new XMLHttpRequest();
-          xhttp.onreadystatechange = function() {
-            if (this.readyState == 4) {
-              if (this.status == 200) {elmnt.innerHTML = this.responseText;}
-              if (this.status == 404) {elmnt.innerHTML = "Page not found.";}
-              /* Remove the attribute, and call this function once more: */
-              elmnt.removeAttribute("w3-include-html");
-              includeHTML();
-            }
-          }
-          xhttp.open("GET", file, true);
-          xhttp.send();
-          /* Exit the function: */
-          return;
-        }
-      }
-    }
-    </script>

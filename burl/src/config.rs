@@ -1,8 +1,8 @@
 use crate::request_factory::Method;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize, Debug, Clone, Serialize)]
 pub enum DurationScale {
     Nano,
     #[default]

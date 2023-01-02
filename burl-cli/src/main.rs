@@ -69,7 +69,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let bencher = BenchClient::init(specs)?;
         if let Some(stats) = bencher.start_run().await {
             info!("{}", stats);
-            burl::plot_stats(stats, dir);
+            burl::create_report(stats, dir);
         }
     }
     trace!("Finished");

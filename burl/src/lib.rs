@@ -1,11 +1,12 @@
 mod config;
 mod plots;
+mod report;
 mod request_factory;
 mod stats;
 
 pub use config::BenchConfig;
 use config::DurationScale;
-pub use plots::plot_stats;
+pub use report::create_report;
 
 use crate::config::ConcurrenyLevel;
 use log::{error, info};

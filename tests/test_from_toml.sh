@@ -1,1 +1,0 @@
-cargo r --release -- -f "./tests/specs.toml" from-toml 
