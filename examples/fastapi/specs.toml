@@ -1,17 +1,11 @@
+### RUN
+# ./burl-cli -f "specs.toml" from-toml
+
 ###--- REQUIRED PARAMS ----
 
-## FASTAPI
 # url = "http://127.0.0.1:8000/ping" # fastapi
 # url = "http://127.0.0.1:8000/delayed/10" # fastapi
-# url = "http://127.0.0.1:8000/items" # fastapi post
-
-## RUST
-# url = "http://0.0.0.0:8080/ping" # actix
-# url = "http://localhost:8080/ping" # actix windows
-# url = "http://0.0.0.0:8080/delayed/10" # actix
-# url = "http://0.0.0.0:8080/items/" # actix
-# url = "http://0.0.0.0:8080/items/" # actix post
-url = "http://localhost:8080/items/" # actix post windows
+url = "http://127.0.0.1:8000/items" # fastapi post
 
 ## --- GET
 # method = "Get"
@@ -24,11 +18,11 @@ json_payload = """ { "name": "john doezer", "price": 10.2 }"""
 ## Auth
 # bearer_token = "1q2asdasd.asdasdasd.asd123e"
 ## Run config
-n_runs = 300                   # default=300
-n_warmup_runs = 500            # default=0
-concurrency_level = 4          # default=1
-duration_scale = "Micro"       #  Secs | Milli | Micro(Default) | Nano 
-results_folder = "tests/actix"
+n_runs = 300                              # default=300
+n_warmup_runs = 500                       # default=0
+concurrency_level = 4                     # default=1
+duration_scale = "Micro"                  # Secs | Milli | Micro(Default) | Nano 
+report_folder = "examples/fastapi/report"
 
 headers = [
     [

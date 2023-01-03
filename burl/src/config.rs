@@ -1,8 +1,8 @@
-use crate::request_factory::Method;
-use serde::Deserialize;
+use crate::sampling::Method;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize, Debug, Clone, Serialize)]
 pub enum DurationScale {
     Nano,
     #[default]
@@ -31,7 +31,7 @@ pub enum ConcurrenyLevel {
 }
 
 // TODO: structure into sub types
-#[derive(Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 
 pub struct BenchConfig {
     pub url: String,
@@ -48,7 +48,7 @@ pub struct BenchConfig {
     // #[serde(rename = "bearerToken")]
     pub bearer_token: Option<String>,
 
-    // #[serde(rename = "durationUnit")]
+    // #[serde(rename = "durationScale")]
     duration_scale: Option<DurationScale>,
 
     // #[serde(rename = "numberRuns")]
@@ -59,7 +59,7 @@ pub struct BenchConfig {
     // #[serde(rename = "concurrencyLevel")]
     concurrency_level: Option<usize>,
 
-    pub results_folder: Option<String>,
+    pub report_folder: Option<String>,
     // TODO:
     // * output path for results etc
     // * randomized requests / vec of payloads
@@ -67,6 +67,8 @@ pub struct BenchConfig {
     // #[serde(rename = "jsonPayloads")]
     // json_payloads: Option<Vec<String>>,
 }
+
+const DEFAULT_NRUNS: usize = 300;
 
 impl BenchConfig {
     pub fn new(url: String) -> Self {
@@ -77,7 +79,7 @@ impl BenchConfig {
     }
 
     pub fn n_runs(&self) -> usize {
-        self.n_runs.unwrap_or(300).max(0)
+        self.n_runs.unwrap_or(DEFAULT_NRUNS).max(0)
     }
 
     pub fn concurrency_level(&self) -> ConcurrenyLevel {
@@ -87,7 +89,7 @@ impl BenchConfig {
         }
     }
 
-    pub fn duration_unit(&self) -> DurationScale {
+    pub fn duration_scale(&self) -> DurationScale {
         self.duration_scale.clone().unwrap_or_default()
     }
 

@@ -1,68 +1,15 @@
-use crate::stats::Stats;
-use log::info;
+use crate::reporting::stats::Stats;
+use crate::ThreadIdx;
 use plotly::box_plot::{BoxMean, BoxPoints};
 use plotly::common::{Line, LineShape, Marker, Mode, Title};
-use plotly::histogram::HistNorm;
+use plotly::histogram::{Bins, HistNorm};
 use plotly::layout::{Axis, BarMode};
 use plotly::{BoxPlot, Histogram, Layout, NamedColor, Plot, Rgb, Scatter};
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::collections::HashMap;
+use std::path::PathBuf;
 
 /// https://github.com/igiagkiozis/plotly/blob/master/examples/statistical_charts/src/main.rs///
 /// https://igiagkiozis.github.io/plotly/content/recipes/statistical_charts/box_plots.html
-
-const REPORT_TEMPLATE: &str = r#"
-<html>
-</head>
-<body>
-<div>
-  <iframe src="./plots/durations_distribution.html" seamless width="2000" height="600" frameBorder="0">
-    Warning: durations_distribution.html could not be included.
-  </iframe>
-</div>
-<div>
-  <iframe src="./plots/durations_histogram.html" seamless width="1200" height="600" title = "histogram" frameBorder="0">
-    Warning: durations_histogram.html could not be included.
-  </iframe>
-</div>
-<div>
-  <iframe src="./plots/durations_timeseries.html" seamless width="1200" height="600" frameBorder="0">
-    Warning: durations_timeseries.html could not be included.
-  </iframe>
-</div>
-</body>
-</html>
-"#;
-
-fn setup_report(output_path: Option<String>) -> Option<PathBuf> {
-    let output = output_path?;
-    let path = Path::new(&output);
-
-    if !path.exists() {
-        fs::create_dir(path).unwrap();
-    }
-    let report_file = path.join("report.html");
-    if !report_file.exists() {
-        fs::write(report_file, REPORT_TEMPLATE).unwrap();
-    }
-
-    let plot_dir = Path::new(&path).join("plots");
-    if !plot_dir.exists() {
-        fs::create_dir(&plot_dir).unwrap();
-    }
-
-    info!("Creating report in {}", output);
-    Some(plot_dir)
-}
-
-pub fn plot_stats(stats: Stats, output_path: Option<String>) {
-    // TODO: add plotoptions with outputpath, duration scale, title etc
-
-    let plot_dir = setup_report(output_path);
-    plot_time_series(&stats, &plot_dir);
-    plot_histogram(&stats, &plot_dir);
-    plot_box_plot(stats, &plot_dir);
-}
 
 fn rgb_color(thread_idx: usize, n_threads: usize) -> Rgb {
     let min = 50;
@@ -72,7 +19,7 @@ fn rgb_color(thread_idx: usize, n_threads: usize) -> Rgb {
     Rgb::new(scale, min as u8, scale)
 }
 
-fn plot_box_plot(stats: Stats, output_path: &Option<PathBuf>) {
+pub fn plot_box_plot(stats: &Stats, output_path: &Option<PathBuf>) {
     let mut plot = Plot::new();
 
     let layout = Layout::new()
@@ -86,7 +33,7 @@ fn plot_box_plot(stats: Stats, output_path: &Option<PathBuf>) {
                 .zero_line_width(2),
         );
 
-    let trace_durations_box_plot = BoxPlot::new(stats.durations)
+    let trace_durations_box_plot = BoxPlot::new(stats.durations.clone())
         .name("total")
         .jitter(0.7)
         .marker(Marker::new().color(Rgb::new(7, 40, 89)).size(6))
@@ -120,7 +67,7 @@ fn plot_box_plot(stats: Stats, output_path: &Option<PathBuf>) {
     }
 }
 
-fn plot_histogram(stats: &Stats, output_path: &Option<PathBuf>) {
+pub fn plot_histogram(stats: &Stats, output_path: &Option<PathBuf>) {
     let mut plot = Plot::new();
 
     let layout = Layout::new()
@@ -130,16 +77,20 @@ fn plot_histogram(stats: &Stats, output_path: &Option<PathBuf>) {
         .y_axis(Axis::new().title(Title::new("frequency")).zero_line(true));
     plot.set_layout(layout);
 
-    // TODO: improve on n buckets, size, and overlay
+    // TODO: consider to split total and thread histograms, the latter being stacked
 
-    let n_buckets = 20; // stats.n_ok / 10_usize
+    let n_buckets = 30;
+    let bins = Bins::new(
+        stats.min,
+        stats.max,
+        (stats.max - stats.min) / n_buckets as f64,
+    );
 
     let total_histogram = Histogram::new(stats.durations.clone())
         .hist_norm(HistNorm::Probability)
         .name("total")
-        // .opacity(0.2)
         .marker(Marker::new().color(NamedColor::Blue))
-        .n_bins_x(n_buckets);
+        .x_bins(bins.clone());
 
     plot.add_trace(total_histogram);
 
@@ -151,7 +102,7 @@ fn plot_histogram(stats: &Stats, output_path: &Option<PathBuf>) {
                 .hist_norm(HistNorm::Probability)
                 .opacity(0.5)
                 .marker(Marker::new().color(thread_color))
-                .n_bins_x(n_buckets);
+                .x_bins(bins.clone());
             plot.add_trace(thread_hist)
         }
     }
@@ -164,21 +115,22 @@ fn plot_histogram(stats: &Stats, output_path: &Option<PathBuf>) {
     }
 }
 
-fn plot_time_series(stats: &Stats, output_path: &Option<PathBuf>) {
+pub fn plot_time_series(
+    ts_by_thread: &HashMap<ThreadIdx, Vec<(f64, f64)>>,
+    output_path: &Option<PathBuf>,
+) {
     let mut plot = Plot::new();
 
-    for (thread_idx, ts) in stats.stats_by_thread.iter() {
-        let ts = &ts.time_series;
+    for (thread_idx, ts) in ts_by_thread.iter() {
         let mut ts_dates: Vec<f64> = Vec::with_capacity(ts.len());
         let mut ts_values = Vec::with_capacity(ts.len());
 
-        for ts_point in ts.iter() {
-            let (time, v) = ts_point.as_graph_point();
-            ts_dates.push(time);
-            ts_values.push(v);
+        for (time, v) in ts.iter() {
+            ts_dates.push(*time);
+            ts_values.push(*v);
         }
 
-        let thread_color = rgb_color(*thread_idx, stats.stats_by_thread.len());
+        let thread_color = rgb_color(*thread_idx, ts_by_thread.len());
 
         let trace_ts = Scatter::new(ts_dates, ts_values)
             .name(thread_idx.to_string().as_str())

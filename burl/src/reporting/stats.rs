@@ -1,96 +1,14 @@
-use crate::config::DurationScale;
+use crate::{
+    config::DurationScale,
+    sampling::{RequestResult, SampleCollector, StatusCode},
+    ThreadIdx,
+};
 use log::warn;
+use serde::Serialize;
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
-    time::Duration,
 };
-
-impl DurationScale {
-    pub fn elapsed(&self, duration: &Duration) -> f64 {
-        match self {
-            DurationScale::Nano => duration.as_nanos() as f64,
-            DurationScale::Micro => duration.as_micros() as f64,
-            DurationScale::Milli => duration.as_millis() as f64,
-            DurationScale::Secs => duration.as_secs() as f64,
-        }
-    }
-}
-
-struct SampleResult {
-    duration_since_start: Duration,
-    duration_request_end: Duration,
-    request_duration: Duration,
-    content_length: Option<u64>,
-}
-
-#[derive(Debug)]
-pub enum TimeSeriesPoint {
-    Start((f64, f64)),
-    End(f64),
-}
-
-impl TimeSeriesPoint {
-    pub fn as_graph_point(&self) -> (f64, f64) {
-        match self {
-            TimeSeriesPoint::Start((time, duration)) => (*time, *duration),
-            TimeSeriesPoint::End(time) => (*time, 0.0),
-        }
-    }
-}
-
-enum RequestResult {
-    /// Contains the status code.
-    Failed(usize),
-    /// Contains the duration of the request.
-    Ok(SampleResult),
-}
-
-type ThreadIdx = usize;
-type StatusCode = usize;
-
-pub struct SampleCollector {
-    duration_scale: DurationScale,
-    thread_idx: ThreadIdx,
-    n_runs: usize,
-    results: Vec<RequestResult>,
-}
-
-impl SampleCollector {
-    pub fn init(thread_idx: ThreadIdx, n_runs: usize, duration_scale: DurationScale) -> Self {
-        Self {
-            duration_scale,
-            thread_idx,
-            n_runs: 0,
-            results: Vec::with_capacity(n_runs),
-        }
-    }
-
-    pub fn add(
-        &mut self,
-        measurement_start: Duration,
-        measurement_end: Duration,
-        duration: Duration,
-        status_code: StatusCode,
-        content_length: Option<u64>,
-    ) {
-        let result = match status_code {
-            200 => RequestResult::Ok(SampleResult {
-                duration_since_start: measurement_start,
-                duration_request_end: measurement_end,
-                request_duration: duration,
-                content_length,
-            }),
-            sc => {
-                warn!("Received response with status code {}", sc);
-                RequestResult::Failed(sc)
-            }
-        };
-
-        self.results.push(result);
-        self.n_runs += 1;
-    }
-}
 
 fn sum(durations: &[f64]) -> f64 {
     durations.iter().fold(0.0, |acc, dur| acc + dur)
@@ -129,14 +47,15 @@ fn standard_deviation(samples: &[f64], mean: f64) -> Option<f64> {
     Some(std)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct ThreadStats {
-    // pub total: f64,
-    pub total_bytes: u64,
-    pub durations: Vec<f64>,
-    // collection of start/end time of the sample from start of the measurement with the duration
-    pub time_series: Vec<TimeSeriesPoint>,
+    #[serde(skip_serializing)]
     errors: HashMap<StatusCode, i32>,
+    #[serde(skip_serializing)] // serialize or not?
+    pub durations: Vec<f64>,
+
+    pub total_bytes: u64,
+    pub n_ok: usize,
     pub n_errors: usize,
 
     pub total_duration: Option<f64>,
@@ -146,32 +65,29 @@ pub struct ThreadStats {
     pub std: Option<f64>,
 }
 
-impl From<SampleCollector> for ThreadStats {
-    fn from(samples: SampleCollector) -> Self {
+impl From<&SampleCollector> for ThreadStats {
+    fn from(samples: &SampleCollector) -> Self {
         let mut durations = Vec::with_capacity(samples.n_runs);
         let mut errors = HashMap::new();
-        let mut time_series: Vec<TimeSeriesPoint> = Vec::with_capacity(2 * samples.n_runs);
-        let mut total_bytes = 0;
-        let mut n_errors = 0;
+        let mut sample_results = Vec::with_capacity(samples.n_runs);
 
-        let get_duration =
-            |duration: &Duration| -> f64 { samples.duration_scale.elapsed(duration) };
+        let mut total_bytes = 0;
+        let mut n_ok = 0;
+        let mut n_errors = 0;
+        let mut max = 0.0_f64;
+        let mut min = f64::MAX;
 
         for result in samples.results.iter() {
             match result {
                 RequestResult::Ok(duration_point) => {
-                    let request_duration = get_duration(&duration_point.request_duration);
-                    durations.push(request_duration);
-                    let duration_since_start = get_duration(&duration_point.duration_since_start);
-                    time_series.push(TimeSeriesPoint::Start((
-                        duration_since_start,
-                        request_duration,
-                    )));
-                    // let duration_request_end = get_duration(&duration_point.duration_request_end);
-                    // time_series.push(TimeSeriesPoint::End(duration_request_end));
+                    sample_results.push(duration_point);
+                    durations.push(duration_point.duration);
+                    max = max.max(duration_point.duration);
+                    min = min.min(duration_point.duration);
                     if let Some(bytes) = duration_point.content_length {
                         total_bytes += bytes;
                     }
+                    n_ok += 1;
                 }
                 RequestResult::Failed(status_code) => {
                     errors
@@ -188,8 +104,6 @@ impl From<SampleCollector> for ThreadStats {
             let sum = sum(&durations);
             let mean = sum / (n as f64);
             let std = standard_deviation(&durations, mean);
-            let max = 0.0;
-            let min = 0.0;
             (Some(sum), Some(mean), std, Some(max), Some(min))
         } else {
             (None, None, None, None, None)
@@ -198,8 +112,8 @@ impl From<SampleCollector> for ThreadStats {
         Self {
             total_bytes,
             durations,
-            time_series,
             errors,
+            n_ok,
             n_errors,
             total_duration,
             mean,
@@ -210,10 +124,16 @@ impl From<SampleCollector> for ThreadStats {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Stats {
-    scale: DurationScale,
-    pub total: f64,
+    // #[serde(skip_serializing_if = "Map::is_empty")]
+    #[serde(skip_serializing)]
+    pub errors: HashMap<StatusCode, i32>,
+    #[serde(skip_serializing)] // serialize or not?
+    pub durations: Vec<f64>,
+
+    pub scale: DurationScale,
+    pub total_duration: f64,
     pub total_bytes: u64,
     pub mean: f64,
     pub median: f64,
@@ -222,16 +142,14 @@ pub struct Stats {
     pub min: f64,
     pub max: f64,
     pub std: Option<f64>,
-    pub durations: Vec<f64>,
     pub n_ok: usize,
     pub n_errors: usize,
-    pub errors: HashMap<StatusCode, i32>,
 
     pub stats_by_thread: HashMap<ThreadIdx, ThreadStats>,
-    // TODO: provide overview of errors - tbd if actually interestering or a corner case
-    // TODO: outliers
     /// Percentiles 1% 5% 10% 20% 30% 40% 50% 60% 70% 80% 90% 95% 99%
     percentiles: Vec<(f64, f64)>,
+    // TODO: provide overview of errors - tbd if actually interestering or a corner case
+    // TODO: outliers
 }
 
 impl Display for Stats {
@@ -239,14 +157,15 @@ impl Display for Stats {
         writeln!(f)?;
         writeln!(
             f,
-            "__________SUMMARY_[in {}s, on {} threads]__________",
+            "_______SUMMARY_[in {}s, on {} threads]___________",
             &self.scale,
             &self.stats_by_thread.len()
         )?;
-        writeln!(f, "Total Duration   | {}", self.total)?;
         writeln!(f, "Total bytes      | {}", self.total_bytes)?;
         writeln!(f, "Number ok        | {}", self.n_ok)?;
         writeln!(f, "Number failed    | {}", self.n_errors)?;
+        writeln!(f, "_______DURATIONS_______________________________")?;
+        writeln!(f, "Total            | {}", self.total_duration)?;
         writeln!(f, "Mean             | {}", self.mean)?;
         // writeln!(f, "Requests per sec | {}", self.mean)?;
 
@@ -260,8 +179,7 @@ impl Display for Stats {
         writeln!(f, "Max              | {}", self.max)?;
 
         if self.n_ok >= 12 {
-            writeln!(f, "___________________________________________")?;
-            writeln!(f, "Distribution of percentiles:")?;
+            writeln!(f, "_______PERCENTILES_____________________________")?;
             for (level, percentile) in self.percentiles.iter() {
                 writeln!(f, "{}%    {}", level, percentile)?;
             }
@@ -276,16 +194,14 @@ impl Display for Stats {
                 }
             };
 
-            writeln!(f, "___________________________________________")?;
-            writeln!(
-                f,
-                "Thread statistics [Idx : total | mean | std | min | max]"
-            )?;
+            writeln!(f, "_______THREADS_________________________________")?;
+            writeln!(f, "(Idx : num ok) | total | mean | std | min | max")?;
             for (thread_idx, thread_stats) in self.stats_by_thread.iter() {
                 writeln!(
                     f,
-                    "{}: {} | {} | {} | {} | {}",
+                    "({}: {}) | {} | {} | {} | {} | {}",
                     thread_idx,
+                    thread_stats.n_ok,
                     format_option(thread_stats.total_duration),
                     format_option(thread_stats.mean),
                     format_option(thread_stats.std),
@@ -295,16 +211,20 @@ impl Display for Stats {
             }
         }
 
-        writeln!(f, "___________________________________________")
+        writeln!(f, "_______________________________________________")
     }
 }
 
+static PERCENTILE_LEVELS: [f64; 13] = [
+    0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99,
+];
+
 impl Stats {
     /// Collect the sample results from the threads' samples.
-    pub fn collect<S>(samples_by_thread: &mut S, duration_scale: DurationScale) -> Option<Self>
-    where
-        S: Iterator<Item = SampleCollector>,
-    {
+    pub fn collect(
+        samples_by_thread: &Vec<SampleCollector>,
+        duration_scale: DurationScale,
+    ) -> Option<Self> {
         let mut durations = Vec::new();
         let mut stats_by_thread = HashMap::new();
         let mut total_bytes = 0;
@@ -313,7 +233,7 @@ impl Stats {
 
         for samples in samples_by_thread {
             let idx = samples.thread_idx;
-            let thread_stats: ThreadStats = samples.into();
+            let thread_stats = ThreadStats::from(samples);
 
             n_errors += thread_stats.n_errors;
             total_bytes += thread_stats.total_bytes;
@@ -350,7 +270,10 @@ impl Stats {
     ) -> Option<Self> {
         let n = durations.len();
         if n == 0 {
-            warn!("Measurement yielded no valid results.");
+            warn!(
+                "Measurement yielded no valid results. Distribution of status codes: {:?}",
+                errors
+            );
             return None;
         }
 
@@ -368,17 +291,15 @@ impl Stats {
         let min = *durations.first().unwrap();
         let max = *durations.last().unwrap();
 
-        let percentiles: Vec<(f64, f64)> = [
-            0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99,
-        ]
-        .into_iter()
-        .map(|level| (level * 100.0, percentile(&durations, level, n as f64)))
-        .collect();
+        let percentiles: Vec<(f64, f64)> = PERCENTILE_LEVELS
+            .into_iter()
+            .map(|level| (level * 100.0, percentile(&durations, level, n as f64)))
+            .collect();
 
         Some(Stats {
             scale,
             durations,
-            total: sum,
+            total_duration: sum,
             total_bytes,
             mean,
             median,

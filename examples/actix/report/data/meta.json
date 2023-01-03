@@ -1,0 +1,24 @@
+{
+  "start_time": "2023-01-03 10:12:08",
+  "end_time": "2023-01-03 10:12:09",
+  "config": {
+    "url": "http://localhost:8080/items/",
+    "method": "Post",
+    "disable_certificate_validation": null,
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ]
+    ],
+    "json_payload": "{ \"name\": \"john doezer\", \"price\": 10.2 }",
+    "json_payload_ref": null,
+    "gql_query": null,
+    "bearer_token": null,
+    "duration_scale": "Micro",
+    "n_runs": 300,
+    "n_warmup_runs": 500,
+    "concurrency_level": 4,
+    "report_folder": "examples/actix/report"
+  }
+}
