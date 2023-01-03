@@ -6,8 +6,12 @@ Run Burl as CLI tool and manage your setup conveniently with config files (see [
 
 ### Examples
 Find sample reports for 
-* [FastApi (Python)](https://fastapi.tiangolo.com/): [config](./examples/actix/actix_specs.toml) [report](./examples/fastapi/report/report.html)
-* [Actix web (Rust)](https://github.com/actix/actix-web): [config](./examples/fastapi/fastapi_specs.toml) [report](./examples/actix/report/report.html)
+* [FastApi (Python)](https://fastapi.tiangolo.com/): 
+    - [config](./examples/actix/actix_specs.toml) 
+    - [report](./examples/fastapi/report/report.html)
+* [Actix web (Rust)](https://github.com/actix/actix-web): 
+    - [config](./examples/fastapi/fastapi_specs.toml) 
+    - [report](./examples/actix/report/report.html)
 
 <br>
 <img src="./resources/summary.png" width="300" height="400" />
@@ -23,7 +27,6 @@ Find sample reports for
 * improve error handling
 * cli improvement and clarification
 * stats-extension:
-    * add console output to report.html
     * reuse (baseline) results for comparison  
     * confidence interval
     * analyze outliers
