@@ -9,8 +9,9 @@ Find sample reports for
 * [FastApi (Python)](https://fastapi.tiangolo.com/): [config](./examples/actix/actix_specs.toml) [report](./examples/fastapi/report/report.html)
 * [Actix web (Rust)](https://github.com/actix/actix-web): [config](./examples/fastapi/fastapi_specs.toml) [report](./examples/actix/report/report.html)
 
-
-<img src="./resources/console_summary.png" width="300" height="300" /><br>
+<br>
+<img src="./resources/summary.png" width="300" height="400" />
+<img src="./resources/console_summary.png" width="300" height="400" /><br>
 <img src="./resources/durations_box_plot.png" width="600" height="300" /><br>
 <img src="./resources/durations_histogram.png" width="600" height="300" /><br>
 <img src="./resources/durations_timeseries.png" width="600" height="300" />
