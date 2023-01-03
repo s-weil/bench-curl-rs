@@ -48,7 +48,7 @@ pub struct BenchConfig {
     // #[serde(rename = "bearerToken")]
     pub bearer_token: Option<String>,
 
-    // #[serde(rename = "durationUnit")]
+    // #[serde(rename = "durationScale")]
     duration_scale: Option<DurationScale>,
 
     // #[serde(rename = "numberRuns")]
@@ -59,7 +59,7 @@ pub struct BenchConfig {
     // #[serde(rename = "concurrencyLevel")]
     concurrency_level: Option<usize>,
 
-    pub results_folder: Option<String>,
+    pub report_folder: Option<String>,
     // TODO:
     // * output path for results etc
     // * randomized requests / vec of payloads
@@ -67,6 +67,8 @@ pub struct BenchConfig {
     // #[serde(rename = "jsonPayloads")]
     // json_payloads: Option<Vec<String>>,
 }
+
+const DEFAULT_NRUNS: usize = 300;
 
 impl BenchConfig {
     pub fn new(url: String) -> Self {
@@ -77,7 +79,7 @@ impl BenchConfig {
     }
 
     pub fn n_runs(&self) -> usize {
-        self.n_runs.unwrap_or(300).max(0)
+        self.n_runs.unwrap_or(DEFAULT_NRUNS).max(0)
     }
 
     pub fn concurrency_level(&self) -> ConcurrenyLevel {

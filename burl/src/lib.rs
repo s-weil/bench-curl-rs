@@ -1,20 +1,15 @@
 mod config;
-mod plots;
-mod report;
+mod reporting;
 mod sampling;
-mod stats;
 
 pub use config::BenchConfig;
 pub(crate) use config::ConcurrenyLevel;
-pub use report::ReportSummary;
 
 use log::{error, info};
-use reqwest::*;
-use sampling::RequestFactory;
+use reporting::ReportSummary;
+use sampling::{RequestFactory, SampleCollector};
 use std::sync::Arc;
 use tokio::time::Instant;
-
-use crate::sampling::SampleCollector;
 
 pub type ThreadIdx = usize;
 
@@ -24,9 +19,10 @@ pub struct BenchClient<'a> {
 }
 
 impl<'a> BenchClient<'a> {
-    pub fn init(config: &'a BenchConfig) -> Result<Self> {
+    pub fn init(config: &'a BenchConfig) -> Result<Self, String> {
         let request_factory =
-            RequestFactory::new(config.disable_certificate_validation.unwrap_or_default())?;
+            RequestFactory::new(config.disable_certificate_validation.unwrap_or_default())
+                .map_err(|err| format!("Could not initialize client: {}", err))?;
 
         Ok(Self {
             config,
@@ -47,7 +43,7 @@ impl<'a> BenchClient<'a> {
             }
         };
 
-        // Trigger un-timed requests, possibly to populate a cache or similiar
+        // Trigger non-timed requests, possibly to populate a cache or similiar
         info!("Warming up");
         for _ in 0..self.config.warmup_runs() {
             if let Err(error) = request_builder.try_clone().unwrap().send().await {

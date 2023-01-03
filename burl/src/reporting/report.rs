@@ -1,7 +1,7 @@
 use crate::{
-    plots::{plot_box_plot, plot_histogram, plot_time_series},
+    reporting::plots::{plot_box_plot, plot_histogram, plot_time_series},
+    reporting::stats::Stats,
     sampling::{SampleCollector, SampleResult},
-    stats::Stats,
     BenchConfig, ThreadIdx,
 };
 use log::{info, warn};
@@ -41,7 +41,7 @@ fn setup_report(path: &Path) -> Result<(PathBuf, PathBuf), std::io::Error> {
 
     let report_file = path.join("report.html");
     if !report_file.exists() {
-        let template = include_str!("../template.html");
+        let template = include_str!("./template.html");
         fs::write(report_file, template)?;
     }
 
@@ -146,7 +146,7 @@ impl<'a> ReportSummary<'a> {
     pub fn create_report(&self) -> Result<(), String> {
         // TODO: add plotoptions with outputpath, duration scale, title etc
 
-        if let Some(report_path) = &self.config.results_folder {
+        if let Some(report_path) = &self.config.report_folder {
             let path = Path::new(report_path);
             let (plot_dir, data_dir) = setup_report(path)
                 .map_err(|err| format!("Unable to set up report structure: {}", err))?;

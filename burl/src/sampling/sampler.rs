@@ -56,6 +56,8 @@ impl RequestResult {
 
 pub type StatusCode = usize;
 
+/// Creates and collects samples:
+/// Iteratively sends the same request, measures timings and responses and adds results.
 pub struct SampleCollector {
     timer: Arc<Instant>,               // TODO: as param? same as for requestBuilder?
     pub duration_scale: DurationScale, // TODO: Arc?

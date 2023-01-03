@@ -1,4 +1,4 @@
-use crate::stats::Stats;
+use crate::reporting::stats::Stats;
 use crate::ThreadIdx;
 use plotly::box_plot::{BoxMean, BoxPoints};
 use plotly::common::{Line, LineShape, Marker, Mode, Title};
@@ -10,12 +10,6 @@ use std::path::PathBuf;
 
 /// https://github.com/igiagkiozis/plotly/blob/master/examples/statistical_charts/src/main.rs///
 /// https://igiagkiozis.github.io/plotly/content/recipes/statistical_charts/box_plots.html
-
-// pub fn plot_stats(stats: &Stats, plot_dir: Option<PathBuf>) {
-//     plot_time_series(stats, &plot_dir);
-//     plot_histogram(stats, &plot_dir);
-//     plot_box_plot(stats, &plot_dir);
-// }
 
 fn rgb_color(thread_idx: usize, n_threads: usize) -> Rgb {
     let min = 50;
