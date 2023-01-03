@@ -19,6 +19,7 @@ Find sample reports for
 ### TODO:
 * iteration support for proper benchmarking
 * split config
+* improve error handling
 * cli improvement and clarification
 * stats-extension:
     * add console output to report.html
@@ -27,7 +28,6 @@ Find sample reports for
     * analyze outliers
     * bivariate metrics for comparison of runs
 * reuse connections / persistence, see e.g. https://twitter.com/mlafeldt/status/1437411223948103683 or https://users.rust-lang.org/t/hyper-reqwest-connection-not-being-kept-alive/10895/5
-* error handling
 * -> support jupyter notebooks! via python api
 * input randomizer (param to folder with json_payloads)
 * functionality for A/B testing / testing different suites

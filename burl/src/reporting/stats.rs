@@ -269,7 +269,10 @@ impl Stats {
     ) -> Option<Self> {
         let n = durations.len();
         if n == 0 {
-            warn!("Measurement yielded no valid results.");
+            warn!(
+                "Measurement yielded no valid results. Distribution of status codes: {:?}",
+                errors
+            );
             return None;
         }
 
