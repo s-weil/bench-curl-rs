@@ -13,7 +13,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const PLOT_DIR: &str = "plots";
+const COMPONENTS_DIR: &str = "components";
 const DATA_DIR: &str = "data";
 const FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
@@ -45,12 +45,9 @@ fn setup_report_structure(path: &Path) -> Result<(PathBuf, PathBuf), std::io::Er
         fs::write(report_file, template)?;
     }
 
-    // let template = include_str!("./templates/report_template.html");
-    // fs::write(report_file, template)?;
-
-    let plot_dir = Path::new(&path).join(PLOT_DIR);
-    if !plot_dir.exists() {
-        fs::create_dir(&plot_dir)?;
+    let components_dir = Path::new(&path).join(COMPONENTS_DIR);
+    if !components_dir.exists() {
+        fs::create_dir(&components_dir)?;
     }
 
     let data_dir = Path::new(&path).join(DATA_DIR);
@@ -59,7 +56,7 @@ fn setup_report_structure(path: &Path) -> Result<(PathBuf, PathBuf), std::io::Er
     }
 
     info!("Creating report in {:?}", path.as_os_str());
-    Ok((plot_dir, data_dir))
+    Ok((components_dir, data_dir))
 }
 
 fn serialize<D: Serialize>(data: &D) -> Result<String, String> {
@@ -75,7 +72,7 @@ fn write_or_update<D: Serialize>(serializable_data: &D, file: PathBuf) -> Result
     Ok(())
 }
 
-fn write_html_table(stats: &Stats, file: PathBuf) -> Result<(), String> {
+fn write_summary_html(stats: &Stats, file: PathBuf) -> Result<(), String> {
     let mut template = include_str!("./templates/summary_template.html").to_string();
     template = template.replace("$SCALE$", stats.scale.clone().to_string().as_str());
 
@@ -155,14 +152,14 @@ impl<'a> ReportSummary<'a> {
         Ok(())
     }
 
-    fn plot_stats(&self, plot_dir: Option<PathBuf>) {
+    fn create_components(&self, components_dir: Option<PathBuf>) {
         if let Some(stats) = &self.stats {
-            if let Some(dir) = &plot_dir {
+            if let Some(dir) = &components_dir {
                 let file = dir.join("summary.html");
-                write_html_table(stats, file).unwrap();
+                write_summary_html(stats, file).unwrap();
             }
-            plot_histogram(stats, &plot_dir);
-            plot_box_plot(stats, &plot_dir);
+            plot_histogram(stats, &components_dir);
+            plot_box_plot(stats, &components_dir);
         }
 
         let time_series = self
@@ -176,19 +173,19 @@ impl<'a> ReportSummary<'a> {
                 (*thread_idx, ts)
             })
             .collect();
-        plot_time_series(&time_series, &plot_dir);
+        plot_time_series(&time_series, &components_dir);
     }
 
     pub fn create_report(&self) -> Result<(), String> {
         if let Some(report_path) = &self.config.report_folder {
             let path = Path::new(report_path);
-            let (plot_dir, data_dir) = setup_report_structure(path)
+            let (components_dir, data_dir) = setup_report_structure(path)
                 .map_err(|err| format!("Unable to set up report structure: {}", err))?;
 
             self.dump_data(data_dir)?;
-            self.plot_stats(Some(plot_dir));
+            self.create_components(Some(components_dir));
         } else {
-            self.plot_stats(None);
+            self.create_components(None);
         }
 
         Ok(())
