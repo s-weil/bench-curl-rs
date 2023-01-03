@@ -1,20 +1,20 @@
 mod config;
 mod plots;
 mod report;
-mod request_factory;
-mod sampler;
+mod sampling;
 mod stats;
 
 pub use config::BenchConfig;
 pub(crate) use config::ConcurrenyLevel;
 pub use report::ReportSummary;
-pub(crate) use sampler::SampleCollector;
 
 use log::{error, info};
-use request_factory::RequestFactory;
 use reqwest::*;
+use sampling::RequestFactory;
 use std::sync::Arc;
 use tokio::time::Instant;
+
+use crate::sampling::SampleCollector;
 
 pub type ThreadIdx = usize;
 
@@ -25,9 +25,8 @@ pub struct BenchClient<'a> {
 
 impl<'a> BenchClient<'a> {
     pub fn init(config: &'a BenchConfig) -> Result<Self> {
-        let request_factory = request_factory::RequestFactory::new(
-            config.disable_certificate_validation.unwrap_or_default(),
-        )?;
+        let request_factory =
+            RequestFactory::new(config.disable_certificate_validation.unwrap_or_default())?;
 
         Ok(Self {
             config,

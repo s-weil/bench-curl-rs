@@ -1,4 +1,4 @@
-use crate::request_factory::Method;
+use crate::sampling::Method;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 

@@ -1,6 +1,6 @@
 use crate::{
     plots::{plot_box_plot, plot_histogram, plot_time_series},
-    sampler::{SampleCollector, SampleResult},
+    sampling::{SampleCollector, SampleResult},
     stats::Stats,
     BenchConfig, ThreadIdx,
 };

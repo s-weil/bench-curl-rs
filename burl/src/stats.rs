@@ -1,6 +1,6 @@
 use crate::{
     config::DurationScale,
-    sampler::{RequestResult, SampleCollector, StatusCode},
+    sampling::{RequestResult, SampleCollector, StatusCode},
     ThreadIdx,
 };
 use log::warn;
