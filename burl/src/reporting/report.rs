@@ -34,16 +34,19 @@ impl<'a> From<&ReportSummary<'a>> for ReportMeta {
     }
 }
 
-fn setup_report(path: &Path) -> Result<(PathBuf, PathBuf), std::io::Error> {
+fn setup_report_structure(path: &Path) -> Result<(PathBuf, PathBuf), std::io::Error> {
     if !path.exists() {
         fs::create_dir(path)?;
     }
 
     let report_file = path.join("report.html");
     if !report_file.exists() {
-        let template = include_str!("./template.html");
+        let template = include_str!("./templates/report_template.html");
         fs::write(report_file, template)?;
     }
+
+    // let template = include_str!("./templates/report_template.html");
+    // fs::write(report_file, template)?;
 
     let plot_dir = Path::new(&path).join(PLOT_DIR);
     if !plot_dir.exists() {
@@ -69,6 +72,30 @@ fn serialize<D: Serialize>(data: &D) -> Result<String, String> {
 fn write_or_update<D: Serialize>(serializable_data: &D, file: PathBuf) -> Result<(), String> {
     let json = serialize(serializable_data)?;
     fs::write(file, json).map_err(|err| format!("Cannot save to file: {}", err))?;
+    Ok(())
+}
+
+fn write_html_table(stats: &Stats, file: PathBuf) -> Result<(), String> {
+    let mut template = include_str!("./templates/summary_template.html").to_string();
+    template = template.replace("$SCALE$", stats.scale.clone().to_string().as_str());
+
+    let mut replace_key_value =
+        |(key, v): (&str, f64)| template = template.replace(key, v.to_string().as_str());
+
+    // TODO: add JS to summary template instead
+    replace_key_value(("$TOTAL_BYTES$", stats.total_bytes as f64));
+    replace_key_value(("$N_OK$", stats.n_ok as f64));
+    replace_key_value(("$N_FAILED$", stats.n_errors as f64));
+    replace_key_value(("$TOTAL_DURATION$", stats.total_duration));
+    replace_key_value(("$MEAN$", stats.mean));
+    replace_key_value(("$STDEV$", stats.std.unwrap_or(f64::NAN)));
+    replace_key_value(("$MIN$", stats.min));
+    replace_key_value(("$MAX$", stats.max));
+    replace_key_value(("$Q1$", stats.quartile_fst));
+    replace_key_value(("$Q2$", stats.median));
+    replace_key_value(("$Q3$", stats.quartile_trd));
+
+    fs::write(file, template).map_err(|err| format!("Cannot save to file: {}", err))?;
     Ok(())
 }
 
@@ -130,6 +157,10 @@ impl<'a> ReportSummary<'a> {
 
     fn plot_stats(&self, plot_dir: Option<PathBuf>) {
         if let Some(stats) = &self.stats {
+            if let Some(dir) = &plot_dir {
+                let file = dir.join("summary.html");
+                write_html_table(stats, file).unwrap();
+            }
             plot_histogram(stats, &plot_dir);
             plot_box_plot(stats, &plot_dir);
         }
@@ -149,11 +180,9 @@ impl<'a> ReportSummary<'a> {
     }
 
     pub fn create_report(&self) -> Result<(), String> {
-        // TODO: add plotoptions with outputpath, duration scale, title etc
-
         if let Some(report_path) = &self.config.report_folder {
             let path = Path::new(report_path);
-            let (plot_dir, data_dir) = setup_report(path)
+            let (plot_dir, data_dir) = setup_report_structure(path)
                 .map_err(|err| format!("Unable to set up report structure: {}", err))?;
 
             self.dump_data(data_dir)?;

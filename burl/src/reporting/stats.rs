@@ -126,12 +126,13 @@ impl From<&SampleCollector> for ThreadStats {
 
 #[derive(Debug, Serialize)]
 pub struct Stats {
+    // #[serde(skip_serializing_if = "Map::is_empty")]
     #[serde(skip_serializing)]
     pub errors: HashMap<StatusCode, i32>,
     #[serde(skip_serializing)] // serialize or not?
     pub durations: Vec<f64>,
 
-    scale: DurationScale,
+    pub scale: DurationScale,
     pub total_duration: f64,
     pub total_bytes: u64,
     pub mean: f64,
@@ -232,7 +233,7 @@ impl Stats {
 
         for samples in samples_by_thread {
             let idx = samples.thread_idx;
-            let thread_stats: ThreadStats = samples.into();
+            let thread_stats = ThreadStats::from(samples);
 
             n_errors += thread_stats.n_errors;
             total_bytes += thread_stats.total_bytes;
