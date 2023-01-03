@@ -4,31 +4,31 @@ use crate::{
     sampling::{SampleCollector, SampleResult},
     BenchConfig, ThreadIdx,
 };
+use chrono::{DateTime, Utc};
 use log::{info, warn};
 use serde::Serialize;
 use std::{
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
-    time::SystemTime,
 };
 
 const PLOT_DIR: &str = "plots";
 const DATA_DIR: &str = "data";
+const FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 
 #[derive(Serialize)]
 struct ReportMeta {
-    // TODO: consider to change to chrono & NaiveDate
-    start_time: SystemTime,
-    end_time: SystemTime,
+    start_time: String,
+    end_time: String,
     config: BenchConfig,
 }
 
 impl<'a> From<&ReportSummary<'a>> for ReportMeta {
     fn from(rs: &ReportSummary<'a>) -> Self {
         Self {
-            start_time: rs.start_time,
-            end_time: rs.end_time,
+            start_time: format!("{}", rs.start_time.format(FORMAT)),
+            end_time: format!("{}", rs.end_time.format(FORMAT)),
             config: rs.config.clone(),
         }
     }
@@ -76,12 +76,17 @@ pub struct ReportSummary<'a> {
     config: &'a BenchConfig,
     sample_results_by_thread: HashMap<ThreadIdx, Vec<SampleResult>>,
     pub stats: Option<Stats>,
-    start_time: SystemTime,
-    end_time: SystemTime,
+    start_time: DateTime<Utc>,
+    end_time: DateTime<Utc>,
 }
 
 impl<'a> ReportSummary<'a> {
-    pub fn new(config: &'a BenchConfig, samples_by_thread: Vec<SampleCollector>) -> Self {
+    pub fn new(
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+        config: &'a BenchConfig,
+        samples_by_thread: Vec<SampleCollector>,
+    ) -> Self {
         let stats = Stats::collect(&samples_by_thread, config.duration_scale());
 
         let mut sample_results_by_thread = HashMap::new();
@@ -98,8 +103,8 @@ impl<'a> ReportSummary<'a> {
             config,
             stats,
             sample_results_by_thread,
-            start_time: SystemTime::now(), // TODO
-            end_time: SystemTime::now(),   // TODO
+            start_time,
+            end_time,
         }
     }
 

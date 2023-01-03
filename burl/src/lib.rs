@@ -5,6 +5,7 @@ mod sampling;
 pub use config::BenchConfig;
 pub(crate) use config::ConcurrenyLevel;
 
+use chrono::Utc;
 use log::{error, info};
 use reporting::ReportSummary;
 use sampling::{RequestFactory, SampleCollector};
@@ -31,6 +32,8 @@ impl<'a> BenchClient<'a> {
     }
 
     pub async fn start_run(&self) -> Option<ReportSummary<'a>> {
+        let report_start_time = Utc::now();
+
         let duration_scale = self.config.duration_scale();
 
         let n_runs = self.config.n_runs();
@@ -99,6 +102,12 @@ impl<'a> BenchClient<'a> {
             }
         };
 
-        Some(ReportSummary::new(self.config, samples_by_thread))
+        let report_end_time = Utc::now();
+        Some(ReportSummary::new(
+            report_start_time,
+            report_end_time,
+            self.config,
+            samples_by_thread,
+        ))
     }
 }
