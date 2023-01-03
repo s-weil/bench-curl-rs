@@ -7,9 +7,8 @@ mod stats;
 
 pub use config::BenchConfig;
 pub(crate) use config::ConcurrenyLevel;
-pub use report::create_report;
+pub use report::ReportSummary;
 pub(crate) use sampler::SampleCollector;
-pub(crate) use stats::Stats;
 
 use log::{error, info};
 use request_factory::RequestFactory;
@@ -19,13 +18,13 @@ use tokio::time::Instant;
 
 pub type ThreadIdx = usize;
 
-pub struct BenchClient {
+pub struct BenchClient<'a> {
     request_factory: RequestFactory,
-    config: BenchConfig,
+    config: &'a BenchConfig,
 }
 
-impl BenchClient {
-    pub fn init(config: BenchConfig) -> Result<Self> {
+impl<'a> BenchClient<'a> {
+    pub fn init(config: &'a BenchConfig) -> Result<Self> {
         let request_factory = request_factory::RequestFactory::new(
             config.disable_certificate_validation.unwrap_or_default(),
         )?;
@@ -36,12 +35,12 @@ impl BenchClient {
         })
     }
 
-    pub async fn start_run(&self) -> Option<Stats> {
-        let duration_scale = self.config.duration_unit();
+    pub async fn start_run(&self) -> Option<ReportSummary<'a>> {
+        let duration_scale = self.config.duration_scale();
 
         let n_runs = self.config.n_runs();
 
-        let request_builder = match self.request_factory.assemble_request(&self.config) {
+        let request_builder = match self.request_factory.assemble_request(self.config) {
             Some(req) => req,
             None => {
                 error!("Failed to compile the request");
@@ -61,7 +60,9 @@ impl BenchClient {
         // `global` timer over all threads
         let timer = Arc::new(Instant::now());
 
-        let stats = match self.config.concurrency_level() {
+        let mut samples_by_thread = Vec::new();
+
+        match self.config.concurrency_level() {
             ConcurrenyLevel::Sequential => {
                 info!(
                     "Starting measurement of {} samples from {}",
@@ -70,8 +71,7 @@ impl BenchClient {
                 let mut sampler =
                     SampleCollector::new(timer.clone(), 0, n_runs, duration_scale.clone());
                 sampler.collect_samples(request_builder).await;
-
-                Stats::collect(&mut vec![sampler].into_iter(), duration_scale)
+                samples_by_thread.push(sampler);
             }
             ConcurrenyLevel::Concurrent(n_threads) => {
                 // TODO: should we divide n-runs?
@@ -99,15 +99,12 @@ impl BenchClient {
                     tasks.push(sampler);
                 }
 
-                let mut samples_by_thread = Vec::with_capacity(n_threads);
                 for task in tasks {
                     samples_by_thread.push(task.await.unwrap());
                 }
-
-                Stats::collect(&mut samples_by_thread.into_iter(), duration_scale)
             }
         };
 
-        stats
+        Some(ReportSummary::new(self.config, samples_by_thread))
     }
 }

@@ -1,19 +1,21 @@
 use crate::stats::Stats;
+use crate::ThreadIdx;
 use plotly::box_plot::{BoxMean, BoxPoints};
 use plotly::common::{Line, LineShape, Marker, Mode, Title};
 use plotly::histogram::{Bins, HistNorm};
 use plotly::layout::{Axis, BarMode};
 use plotly::{BoxPlot, Histogram, Layout, NamedColor, Plot, Rgb, Scatter};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// https://github.com/igiagkiozis/plotly/blob/master/examples/statistical_charts/src/main.rs///
 /// https://igiagkiozis.github.io/plotly/content/recipes/statistical_charts/box_plots.html
 
-pub fn plot_stats(stats: Stats, plot_dir: Option<PathBuf>) {
-    plot_time_series(&stats, &plot_dir);
-    plot_histogram(&stats, &plot_dir);
-    plot_box_plot(stats, &plot_dir);
-}
+// pub fn plot_stats(stats: &Stats, plot_dir: Option<PathBuf>) {
+//     plot_time_series(stats, &plot_dir);
+//     plot_histogram(stats, &plot_dir);
+//     plot_box_plot(stats, &plot_dir);
+// }
 
 fn rgb_color(thread_idx: usize, n_threads: usize) -> Rgb {
     let min = 50;
@@ -23,7 +25,7 @@ fn rgb_color(thread_idx: usize, n_threads: usize) -> Rgb {
     Rgb::new(scale, min as u8, scale)
 }
 
-fn plot_box_plot(stats: Stats, output_path: &Option<PathBuf>) {
+pub fn plot_box_plot(stats: &Stats, output_path: &Option<PathBuf>) {
     let mut plot = Plot::new();
 
     let layout = Layout::new()
@@ -37,7 +39,7 @@ fn plot_box_plot(stats: Stats, output_path: &Option<PathBuf>) {
                 .zero_line_width(2),
         );
 
-    let trace_durations_box_plot = BoxPlot::new(stats.durations)
+    let trace_durations_box_plot = BoxPlot::new(stats.durations.clone())
         .name("total")
         .jitter(0.7)
         .marker(Marker::new().color(Rgb::new(7, 40, 89)).size(6))
@@ -71,7 +73,7 @@ fn plot_box_plot(stats: Stats, output_path: &Option<PathBuf>) {
     }
 }
 
-fn plot_histogram(stats: &Stats, output_path: &Option<PathBuf>) {
+pub fn plot_histogram(stats: &Stats, output_path: &Option<PathBuf>) {
     let mut plot = Plot::new();
 
     let layout = Layout::new()
@@ -119,21 +121,22 @@ fn plot_histogram(stats: &Stats, output_path: &Option<PathBuf>) {
     }
 }
 
-fn plot_time_series(stats: &Stats, output_path: &Option<PathBuf>) {
+pub fn plot_time_series(
+    ts_by_thread: &HashMap<ThreadIdx, Vec<(f64, f64)>>,
+    output_path: &Option<PathBuf>,
+) {
     let mut plot = Plot::new();
 
-    for (thread_idx, ts) in stats.stats_by_thread.iter() {
-        let ts = &ts.time_series;
+    for (thread_idx, ts) in ts_by_thread.iter() {
         let mut ts_dates: Vec<f64> = Vec::with_capacity(ts.len());
         let mut ts_values = Vec::with_capacity(ts.len());
 
-        for ts_point in ts.iter() {
-            let (time, v) = ts_point.as_graph_point();
-            ts_dates.push(time);
-            ts_values.push(v);
+        for (time, v) in ts.iter() {
+            ts_dates.push(*time);
+            ts_values.push(*v);
         }
 
-        let thread_color = rgb_color(*thread_idx, stats.stats_by_thread.len());
+        let thread_color = rgb_color(*thread_idx, ts_by_thread.len());
 
         let trace_ts = Scatter::new(ts_dates, ts_values)
             .name(thread_idx.to_string().as_str())

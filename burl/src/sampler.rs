@@ -1,25 +1,41 @@
 use crate::{config::DurationScale, ThreadIdx};
 use log::{error, warn};
 use reqwest::RequestBuilder;
+use serde::Serialize;
 use std::{sync::Arc, time::Duration};
 use tokio::time::Instant; // TODO: check against std::time::Instant
 
-// impl DurationScale {
-//     pub fn elapsed(&self, duration: &Duration) -> f64 {
-//         match self {
-//             DurationScale::Nano => duration.as_nanos() as f64,
-//             DurationScale::Micro => duration.as_micros() as f64,
-//             DurationScale::Milli => duration.as_millis() as f64,
-//             DurationScale::Secs => duration.as_secs() as f64,
-//         }
-//     }
-// }
+impl DurationScale {
+    pub fn elapsed(&self, duration: &Duration) -> f64 {
+        match self {
+            DurationScale::Nano => duration.as_nanos() as f64,
+            DurationScale::Micro => duration.as_micros() as f64,
+            DurationScale::Milli => duration.as_millis() as f64,
+            DurationScale::Secs => duration.as_secs() as f64,
+        }
+    }
+}
 
+#[derive(Serialize, Clone)]
 pub struct SampleResult {
-    pub duration_from_start: Duration,
+    #[serde(skip_serializing)]
+    pub duration_since_start: Duration,
+    #[serde(skip_serializing)]
     pub duration_request_end: Duration,
+    #[serde(skip_serializing)]
     pub request_duration: Duration,
+
+    pub measurement_start: f64,
+    pub measurement_end: f64,
+    pub duration: f64,
+
     pub content_length: Option<u64>,
+}
+
+impl SampleResult {
+    pub fn as_timeseries_point(&self) -> (f64, f64) {
+        (self.measurement_start, self.duration)
+    }
 }
 
 pub enum RequestResult {
@@ -29,10 +45,19 @@ pub enum RequestResult {
     Ok(SampleResult),
 }
 
+impl RequestResult {
+    pub fn as_result(&self) -> Option<&SampleResult> {
+        match self {
+            RequestResult::Ok(sr) => Some(sr),
+            RequestResult::Failed(_) => None,
+        }
+    }
+}
+
 pub type StatusCode = usize;
 
 pub struct SampleCollector {
-    timer: Arc<Instant>,
+    timer: Arc<Instant>,               // TODO: as param? same as for requestBuilder?
     pub duration_scale: DurationScale, // TODO: Arc?
     pub thread_idx: ThreadIdx,
     pub n_runs: usize,
@@ -65,7 +90,10 @@ impl SampleCollector {
     ) {
         let result = match status_code {
             200 => RequestResult::Ok(SampleResult {
-                duration_from_start: duration_since_start,
+                measurement_start: self.duration_scale.elapsed(&duration_since_start),
+                measurement_end: self.duration_scale.elapsed(&duration_request_end),
+                duration: self.duration_scale.elapsed(&request_duration),
+                duration_since_start,
                 duration_request_end,
                 request_duration,
                 content_length,
@@ -77,7 +105,6 @@ impl SampleCollector {
         };
 
         self.results.push(result);
-        // self.n_runs += 1;
     }
 
     async fn timed_request(&mut self, request: &RequestBuilder) {

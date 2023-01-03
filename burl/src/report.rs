@@ -1,24 +1,38 @@
-use crate::{plots, stats::Stats, BenchClient, BenchConfig};
+use crate::{
+    plots::{plot_box_plot, plot_histogram, plot_time_series},
+    sampler::{SampleCollector, SampleResult},
+    stats::Stats,
+    BenchConfig, ThreadIdx,
+};
 use log::{info, warn};
 use serde::Serialize;
 use std::{
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
     time::SystemTime,
 };
 
-const PLOT_DIR: &'static str = "plots";
-const DATA_DIR: &'static str = "data";
+const PLOT_DIR: &str = "plots";
+const DATA_DIR: &str = "data";
 
 #[derive(Serialize)]
 struct ReportMeta {
     // TODO: consider to change to chrono & NaiveDate
     start_time: SystemTime,
     end_time: SystemTime,
-    // config: ...
+    config: BenchConfig,
 }
 
-// TODO: split stats into sample data and actual metrics/stats
+impl<'a> From<&ReportSummary<'a>> for ReportMeta {
+    fn from(rs: &ReportSummary<'a>) -> Self {
+        Self {
+            start_time: rs.start_time,
+            end_time: rs.end_time,
+            config: rs.config.clone(),
+        }
+    }
+}
 
 fn setup_report(path: &Path) -> Result<(PathBuf, PathBuf), std::io::Error> {
     if !path.exists() {
@@ -45,61 +59,104 @@ fn setup_report(path: &Path) -> Result<(PathBuf, PathBuf), std::io::Error> {
     Ok((plot_dir, data_dir))
 }
 
-fn serialize<D: Serialize>(d: &D) -> Result<String, String> {
-    let json = serde_json::to_string_pretty(d)
-        .map_err(|err| format!("Cannot serialize: {}", err.to_string()))?;
+fn serialize<D: Serialize>(data: &D) -> Result<String, String> {
+    let json =
+        serde_json::to_string_pretty(data).map_err(|err| format!("Cannot serialize: {}", err))?;
     Ok(json)
 }
 
 /// Serializes the data, creates or updates the file and its contents.
-fn write_or_update<D: Serialize>(d: &D, file: PathBuf) -> Result<(), String> {
-    let json = serialize(d)?;
-    fs::write(file, json).map_err(|err| format!("Cannot save to file: {}", err.to_string()))?;
+fn write_or_update<D: Serialize>(serializable_data: &D, file: PathBuf) -> Result<(), String> {
+    let json = serialize(serializable_data)?;
+    fs::write(file, json).map_err(|err| format!("Cannot save to file: {}", err))?;
     Ok(())
 }
 
-fn dump_result_data(stats: &Stats, dir: PathBuf) -> Result<(), String> {
-    let stats_file = dir.join("stats.json");
-    let samples_file = dir.join("samples.json");
-    let meta_file = dir.join("meta.json");
-
-    if stats_file.exists() | meta_file.exists() | samples_file.exists() {
-        // TODO: create a backup of earlier run
-        warn!("Overwriting existing results data");
-    }
-
-    let dummy_meta = ReportMeta {
-        start_time: SystemTime::now(),
-        end_time: SystemTime::now(),
-    };
-
-    // creates or updates the files and its contents
-    write_or_update(&stats, stats_file)?;
-    write_or_update(&dummy_meta, meta_file)?;
-
-    Ok(())
+pub struct ReportSummary<'a> {
+    config: &'a BenchConfig,
+    sample_results_by_thread: HashMap<ThreadIdx, Vec<SampleResult>>,
+    pub stats: Option<Stats>,
+    start_time: SystemTime,
+    end_time: SystemTime,
 }
 
-// pub struct Report {
-//     config: BenchConfig,
-//     stats: Stats,
-//     start_time: SystemTime,
-//     end_time: SystemTime,
-// }
+impl<'a> ReportSummary<'a> {
+    pub fn new(config: &'a BenchConfig, samples_by_thread: Vec<SampleCollector>) -> Self {
+        let stats = Stats::collect(&samples_by_thread, config.duration_scale());
 
-pub fn create_report(stats: Stats, output_path: Option<String>) -> Result<(), String> {
-    // TODO: add plotoptions with outputpath, duration scale, title etc
+        let mut sample_results_by_thread = HashMap::new();
+        for samples in samples_by_thread {
+            let sample_results = samples
+                .results
+                .into_iter()
+                .flat_map(|sr| sr.as_result().cloned())
+                .collect();
+            sample_results_by_thread.insert(samples.thread_idx, sample_results);
+        }
 
-    if let Some(report_path) = output_path {
-        let path = Path::new(&report_path);
-        let (plot_dir, data_dir) = setup_report(&path)
-            .map_err(|err| format!("Unable to set up report structure: {}", err))?;
-
-        dump_result_data(&stats, data_dir)?;
-        plots::plot_stats(stats, Some(plot_dir))
-    } else {
-        plots::plot_stats(stats, None)
+        Self {
+            config,
+            stats,
+            sample_results_by_thread,
+            start_time: SystemTime::now(), // TODO
+            end_time: SystemTime::now(),   // TODO
+        }
     }
 
-    Ok(())
+    fn dump_data(&self, dir: PathBuf) -> Result<(), String> {
+        let stats_file = dir.join("stats.json");
+        let samples_file = dir.join("samples.json");
+        let meta_file = dir.join("meta.json");
+
+        if stats_file.exists() | meta_file.exists() | samples_file.exists() {
+            // TODO: create a backup of earlier run
+            warn!("Overwriting base line results");
+        }
+
+        let dummy_meta = ReportMeta::from(self);
+
+        // creates or updates the files and its contents
+        write_or_update(&self.stats, stats_file)?;
+        write_or_update(&dummy_meta, meta_file)?;
+        write_or_update(&self.sample_results_by_thread, samples_file)?;
+
+        Ok(())
+    }
+
+    fn plot_stats(&self, plot_dir: Option<PathBuf>) {
+        if let Some(stats) = &self.stats {
+            plot_histogram(stats, &plot_dir);
+            plot_box_plot(stats, &plot_dir);
+        }
+
+        let time_series = self
+            .sample_results_by_thread
+            .iter()
+            .map(|(thread_idx, sample_results)| {
+                let ts = sample_results
+                    .iter()
+                    .map(|sr| sr.as_timeseries_point())
+                    .collect();
+                (*thread_idx, ts)
+            })
+            .collect();
+        plot_time_series(&time_series, &plot_dir);
+    }
+
+    pub fn create_report(&self) -> Result<(), String> {
+        // TODO: add plotoptions with outputpath, duration scale, title etc
+
+        if let Some(report_path) = &self.config.results_folder {
+            let path = Path::new(report_path);
+            let (plot_dir, data_dir) = setup_report(path)
+                .map_err(|err| format!("Unable to set up report structure: {}", err))?;
+
+            self.dump_data(data_dir)?;
+            self.plot_stats(Some(plot_dir));
+        } else {
+            self.plot_stats(None);
+        }
+
+        Ok(())
+    }
 }

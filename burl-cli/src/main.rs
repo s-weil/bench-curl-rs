@@ -64,11 +64,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     } {
         trace!("initializing runner with {:?}", &specs);
-        let dir = specs.results_folder.clone();
-        let bencher = BenchClient::init(specs)?;
-        if let Some(stats) = bencher.start_run().await {
-            info!("{}", stats);
-            if let Err(err) = burl::create_report(stats, dir) {
+        let bencher = BenchClient::init(&specs)?;
+        if let Some(report) = bencher.start_run().await {
+            if let Some(stats) = &report.stats {
+                info!("{}", stats);
+            }
+            if let Err(err) = report.create_report() {
                 error!("Report creation failed: {}", err);
             }
         }

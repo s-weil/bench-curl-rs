@@ -31,7 +31,7 @@ pub enum ConcurrenyLevel {
 }
 
 // TODO: structure into sub types
-#[derive(Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 
 pub struct BenchConfig {
     pub url: String,
@@ -87,7 +87,7 @@ impl BenchConfig {
         }
     }
 
-    pub fn duration_unit(&self) -> DurationScale {
+    pub fn duration_scale(&self) -> DurationScale {
         self.duration_scale.clone().unwrap_or_default()
     }
 

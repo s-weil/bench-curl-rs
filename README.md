@@ -25,3 +25,4 @@ Burl-rs is a statistics-driven benchmarking tool and load generator for http-web
 * wasm support? https://github.com/igiagkiozis/plotly#exporting-an-interactive-plot
 * add request_id to request, so that it can be traced back potentially? tbd: could be responsibility of user
 * add lib error
+* platform builds, incl docker

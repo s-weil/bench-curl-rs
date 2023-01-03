@@ -8,7 +8,7 @@ struct GqlQuery<'a> {
     query: &'a String,
 }
 
-#[derive(Deserialize, Debug, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub enum Method {
     #[default]
     Get,
