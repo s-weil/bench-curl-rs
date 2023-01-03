@@ -129,7 +129,7 @@ impl SampleCollector {
                 );
             }
             Err(error) => {
-                error!("Error during sending request: {:?}", error);
+                error!("Error while sending request: {:?}", error);
             }
         }
     }

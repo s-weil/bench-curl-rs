@@ -74,7 +74,6 @@ impl<'a> BenchClient<'a> {
                 samples_by_thread.push(sampler);
             }
             ConcurrenyLevel::Concurrent(n_threads) => {
-                // TODO: should we divide n-runs?
                 info!(
                     "Starting measurement of {} samples (on each of {} threads) from {}",
                     n_runs, n_threads, self.config.url
