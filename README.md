@@ -1,9 +1,19 @@
 ![Burl-rs](./resources/burl_logo.svg)
 
-Burl-rs is a statistics-driven benchmarking tool and load generator for http-webapplications, in Rust.
+<b>Burl</b> is a statistics-driven benchmarking tool and load generator for http-webapplications, written in Rust.
+Measure KPIs of your endpoints, compare different versions of them and analyze the performance with the provided reports, containing plots and result data.
+Run Burl as CLI tool and manage your setup conveniently with config files (see [config](./examples/actix/specs.toml)).
 
-<img src="./resources/box_plot.jpg" width="700" height="600" />
-<img src="./resources/durations_timeseries.png" width="700" height="500" />
+### Examples
+Find sample reports for 
+* [FastApi (Python)](https://fastapi.tiangolo.com/): [config](./examples/actix/actix_specs.toml) [report](./examples/fastapi/report/report.html)
+* [Actix web (Rust)](https://github.com/actix/actix-web): [config](./examples/fastapi/fastapi_specs.toml) [report](./examples/actix/report/report.html)
+
+
+<img src="./resources/console_summary.png" width="300" height="300" /><br>
+<img src="./resources/durations_box_plot.png" width="600" height="300" /><br>
+<img src="./resources/durations_histogram.png" width="600" height="300" /><br>
+<img src="./resources/durations_timeseries.png" width="600" height="300" />
 
 
 ### TODO:
@@ -11,7 +21,8 @@ Burl-rs is a statistics-driven benchmarking tool and load generator for http-web
 * split config
 * cli improvement and clarification
 * stats-extension:
-    * dump also a table of stats and the raw results into the results folder, reuse results for comparison (baseline) 
+    * add console output to report.html
+    * reuse (baseline) results for comparison  
     * confidence interval
     * analyze outliers
     * bivariate metrics for comparison of runs
