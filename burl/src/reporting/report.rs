@@ -113,15 +113,17 @@ impl<'a> ReportSummary<'a> {
     ) -> Self {
         let stats = Stats::collect(&samples_by_thread, config.duration_scale());
 
-        let mut sample_results_by_thread = HashMap::new();
-        for samples in samples_by_thread {
-            let sample_results = samples
-                .results
-                .into_iter()
-                .flat_map(|sr| sr.as_result().cloned())
-                .collect();
-            sample_results_by_thread.insert(samples.thread_idx, sample_results);
-        }
+        let sample_results_by_thread = samples_by_thread
+            .into_iter()
+            .map(|samples| {
+                let sample_results = samples
+                    .results
+                    .into_iter()
+                    .flat_map(|sr| sr.as_result().cloned())
+                    .collect();
+                (samples.thread_idx, sample_results)
+            })
+            .collect();
 
         Self {
             config,
@@ -142,11 +144,11 @@ impl<'a> ReportSummary<'a> {
             warn!("Overwriting base line results");
         }
 
-        let dummy_meta = ReportMeta::from(self);
+        let report_meta = ReportMeta::from(self);
 
         // creates or updates the files and its contents
         write_or_update(&self.stats, stats_file)?;
-        write_or_update(&dummy_meta, meta_file)?;
+        write_or_update(&report_meta, meta_file)?;
         write_or_update(&self.sample_results_by_thread, samples_file)?;
 
         Ok(())
