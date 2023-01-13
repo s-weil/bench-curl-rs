@@ -83,6 +83,7 @@ fn write_summary_html(stats: &Stats, file: PathBuf) -> Result<(), String> {
     replace_key_value(("$TOTAL_BYTES$", stats.total_bytes as f64));
     replace_key_value(("$N_OK$", stats.n_ok as f64));
     replace_key_value(("$N_FAILED$", stats.n_errors as f64));
+    replace_key_value(("$N_THREADS$", stats.stats_by_thread.len() as f64));
     replace_key_value(("$TOTAL_DURATION$", stats.total_duration));
     replace_key_value(("$MEAN$", stats.mean));
     replace_key_value(("$STDEV$", stats.std.unwrap_or(f64::NAN)));
@@ -140,7 +141,7 @@ impl<'a> ReportSummary<'a> {
         let meta_file = dir.join("meta.json");
 
         if stats_file.exists() | meta_file.exists() | samples_file.exists() {
-            // TODO: create a backup of earlier run
+            // TODO: read in meta file, save copy in /dumps/report_startdate/
             warn!("Overwriting base line results");
         }
 
@@ -179,7 +180,7 @@ impl<'a> ReportSummary<'a> {
     }
 
     pub fn create_report(&self) -> Result<(), String> {
-        if let Some(report_path) = &self.config.report_folder {
+        if let Some(report_path) = &self.config.report_directory {
             let path = Path::new(report_path);
             let (components_dir, data_dir) = setup_report_structure(path)
                 .map_err(|err| format!("Unable to set up report structure: {}", err))?;

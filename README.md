@@ -29,6 +29,7 @@ Find sample reports for
 ### TODO:
 * iteration support for proper benchmarking
 * split config
+* docs, doctests, manuals,etc
 * improve error handling
 * cli improvement and clarification
 * stats-extension:

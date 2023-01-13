@@ -5,6 +5,8 @@ use crate::{
 };
 use log::warn;
 use serde::Serialize;
+use statrs::distribution::ContinuousCDF;
+use statrs::distribution::Normal;
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
@@ -45,6 +47,71 @@ fn standard_deviation(samples: &[f64], mean: f64) -> Option<f64> {
     let mean_squared_errors = squared_errors / len as f64; //(len - 1) as f64; which version to go with, biased or unbiased?
     let std = mean_squared_errors.sqrt();
     Some(std)
+}
+
+struct NormalParams {
+    mean: f64,
+    std: f64,
+    n_samples: usize,
+}
+
+#[derive(Debug, PartialEq)]
+enum PerformanceOutcome {
+    Regressed { p_value: f64 },
+    Improved { p_value: f64 },
+    NoChange,
+}
+
+fn test_statistics(np_base: &NormalParams, np: &NormalParams) -> Option<f64> {
+    // the 'combined' standard deviation
+    // let s2: f64 = ((np.n_samples as f64 - 1.0) * np.std.powi(2)
+    //     + (np_base.n_samples as f64 - 1.0) * np_base.std.powi(2))
+    //     * (((np.n_samples + np_base.n_samples)
+    //         / (np.n_samples * np_base.n_samples * (np.n_samples + np_base.n_samples - 2)))
+    //         as f64);
+
+    // the 'combined' standard deviation
+    let s2 =
+        np_base.std.powi(2) / (np_base.n_samples as f64) + np.std.powi(2) / (np.n_samples as f64);
+
+    if s2.abs() < 1.0e-12 {
+        return None;
+    }
+
+    // value of the test-variable
+    let t = (np_base.mean - np.mean) / s2.sqrt();
+    Some(t)
+}
+
+fn unsigned_p_value(np_base: &NormalParams, np: &NormalParams) -> Option<f64> {
+    // value of the test-variable
+    let t = test_statistics(np_base, np)?;
+    let n = Normal::new(0.0, 1.0).unwrap();
+    let cdf_t = n.cdf(t.abs());
+    let p_value = 1.0 - cdf_t;
+    Some(p_value)
+}
+
+/// We assume:
+/// - the samples (of durations) to be independent, identical Gaussian randon variables
+/// - the number of samples (for each collection) to be sufficiently large, so that the estimated std deviations are a good approximation
+/// - the two sample collections (of the baseline and the the current run) to be independent with unknown standard deviation
+fn performance_outcome(
+    np_base: &NormalParams,
+    np: &NormalParams,
+    alpha: f64,
+) -> Option<PerformanceOutcome> {
+    let p_value = unsigned_p_value(&np_base, &np)?;
+
+    if p_value < alpha {
+        return Some(PerformanceOutcome::NoChange);
+    }
+
+    if np_base.mean < np.mean {
+        Some(PerformanceOutcome::Regressed { p_value })
+    } else {
+        Some(PerformanceOutcome::Improved { p_value })
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -319,6 +386,8 @@ impl Stats {
 
 #[cfg(test)]
 mod tests {
+    use statrs::distribution::Normal;
+
     use super::*;
 
     #[test]
@@ -345,5 +414,78 @@ mod tests {
         let std = standard_deviation(&samples, mean);
         assert!(std.is_some());
         assert_eq!(std.unwrap(), 2.0);
+    }
+
+    #[test]
+    fn test_t_stats() {
+        let np_base = NormalParams {
+            mean: 520.0,
+            std: 50.0,
+            n_samples: 80,
+        };
+        let np_new = NormalParams {
+            mean: 500.0,
+            std: 45.0,
+            n_samples: 50,
+        };
+        let t_stats = test_statistics(&np_base, &np_new);
+
+        assert!(t_stats.is_some());
+        assert_eq!(t_stats.unwrap(), 2.361125344403821);
+    }
+
+    #[test]
+    fn test_unsigned_p_value() {
+        let np_base = NormalParams {
+            mean: 520.0,
+            std: 50.0,
+            n_samples: 80,
+        };
+        let np_new = NormalParams {
+            mean: 500.0,
+            std: 45.0,
+            n_samples: 50,
+        };
+        let u_p_value = unsigned_p_value(&np_base, &np_new);
+
+        assert!(u_p_value.is_some());
+        let n = Normal::new(0.0, 1.0).unwrap();
+        assert_eq!(u_p_value.unwrap(), 0.009109785650170843);
+    }
+
+    #[test]
+    fn test_performance_outcome() {
+        let np_base = NormalParams {
+            mean: 520.0,
+            std: 50.0,
+            n_samples: 80,
+        };
+        let np_new = NormalParams {
+            mean: 500.0,
+            std: 45.0,
+            n_samples: 50,
+        };
+
+        let perf_outcome = performance_outcome(&np_base, &np_new, 0.01);
+        assert!(perf_outcome.is_some());
+        assert_eq!(perf_outcome.unwrap(), PerformanceOutcome::NoChange);
+
+        let perf_outcome = performance_outcome(&np_base, &np_new, 0.005);
+        assert!(perf_outcome.is_some());
+        assert_eq!(
+            perf_outcome.unwrap(),
+            PerformanceOutcome::Improved {
+                p_value: 0.009109785650170843
+            }
+        );
+
+        let perf_outcome = performance_outcome(&np_new, &np_base, 0.005);
+        assert!(perf_outcome.is_some());
+        assert_eq!(
+            perf_outcome.unwrap(),
+            PerformanceOutcome::Regressed {
+                p_value: 0.009109785650170843
+            }
+        );
     }
 }

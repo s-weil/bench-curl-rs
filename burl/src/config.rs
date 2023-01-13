@@ -63,9 +63,11 @@ pub struct BenchConfig {
     #[serde(alias = "concurrencyLevel")]
     concurrency_level: Option<usize>,
 
-    pub report_folder: Option<String>,
+    #[serde(alias = "reportDirectory")]
+    pub report_directory: Option<String>,
+    #[serde(alias = "baselinePath")]
+    pub baseline_path: Option<String>,
     // TODO:
-    // * output path for results etc
     // * randomized requests / vec of payloads
     // * logging param with level?
     // #[serde(alias = "jsonPayloads")]
