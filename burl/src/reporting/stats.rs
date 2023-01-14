@@ -4,7 +4,7 @@ use crate::{
     ThreadIdx,
 };
 use log::warn;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use statrs::distribution::ContinuousCDF;
 use statrs::distribution::Normal;
 use std::{
@@ -49,14 +49,24 @@ fn standard_deviation(samples: &[f64], mean: f64) -> Option<f64> {
     Some(std)
 }
 
-struct NormalParams {
-    mean: f64,
-    std: f64,
-    n_samples: usize,
+pub(crate) struct NormalParams {
+    pub(crate) mean: f64,
+    pub(crate) std: f64,
+    pub(crate) n_samples: usize,
+}
+
+impl From<&Stats> for NormalParams {
+    fn from(stats: &Stats) -> Self {
+        NormalParams {
+            mean: stats.mean,
+            std: stats.std.unwrap(), // TODO:
+            n_samples: stats.n_ok,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
-enum PerformanceOutcome {
+pub(crate) enum PerformanceOutcome {
     Regressed { p_value: f64 },
     Improved { p_value: f64 },
     NoChange,
@@ -95,14 +105,14 @@ fn unsigned_p_value(np_base: &NormalParams, np: &NormalParams) -> Option<f64> {
     let p_value = 1.0 - cdf_t;
     Some(p_value)
 }
-fn performance_outcome(
+pub(crate) fn performance_outcome(
     np_base: &NormalParams,
     np: &NormalParams,
     alpha: f64,
 ) -> Option<PerformanceOutcome> {
-    let p_value = unsigned_p_value(&np_base, &np)?;
+    let p_value = unsigned_p_value(np_base, np)?;
 
-    if p_value < alpha {
+    if p_value > alpha {
         return Some(PerformanceOutcome::NoChange);
     }
 
@@ -114,10 +124,12 @@ fn performance_outcome(
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ThreadStats {
-    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    #[serde(skip_serializing)] // serialize or not?
     errors: HashMap<StatusCode, i32>,
+    #[serde(skip_deserializing)]
     #[serde(skip_serializing)] // serialize or not?
     pub durations: Vec<f64>,
 
@@ -191,11 +203,13 @@ impl From<&SampleCollector> for ThreadStats {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Stats {
     // #[serde(skip_serializing_if = "Map::is_empty")]
     #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
     pub errors: HashMap<StatusCode, i32>,
+    #[serde(skip_deserializing)]
     #[serde(skip_serializing)] // serialize or not?
     pub durations: Vec<f64>,
 
@@ -214,6 +228,7 @@ pub struct Stats {
 
     pub stats_by_thread: HashMap<ThreadIdx, ThreadStats>,
     /// Percentiles 1% 5% 10% 20% 30% 40% 50% 60% 70% 80% 90% 95% 99%
+    #[serde(skip_deserializing)]
     percentiles: Vec<(f64, f64)>,
     // TODO: provide overview of errors - tbd if actually interestering or a corner case
     // TODO: outliers

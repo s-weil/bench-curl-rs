@@ -2,7 +2,7 @@ use crate::sampling::Method;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Default, Deserialize, Debug, Clone, Serialize)]
+#[derive(Default, Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum DurationScale {
     Nano,
     #[default]

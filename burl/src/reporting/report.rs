@@ -1,3 +1,4 @@
+use crate::reporting::stats::{performance_outcome, NormalParams, PerformanceOutcome};
 use crate::{
     reporting::plots::{plot_box_plot, plot_histogram, plot_time_series},
     reporting::stats::Stats,
@@ -59,12 +60,17 @@ fn hist_results(from_dir: &PathBuf) -> BurlResult<()> {
         let src_path = entry.path();
         if !src_path.is_dir() {
             let target_file = copy_dir.join(entry.file_name());
-            dbg!(&target_file);
             fs::rename(src_path.as_os_str(), target_file)?;
         }
     }
 
     Ok(())
+}
+
+fn read_data<D: serde::de::DeserializeOwned>(file: &PathBuf) -> BurlResult<D> {
+    let file_data = fs::read_to_string(file)?;
+    let data: D = serde_json::from_str(&file_data)?;
+    Ok(data)
 }
 
 fn setup_report_structure(path: &Path) -> Result<(PathBuf, PathBuf), BurlError> {
@@ -92,19 +98,19 @@ fn setup_report_structure(path: &Path) -> Result<(PathBuf, PathBuf), BurlError> 
     Ok((components_dir, data_dir))
 }
 
-fn serialize<D: Serialize>(data: &D) -> Result<String, BurlError> {
+fn serialize<D: Serialize>(data: &D) -> BurlResult<String> {
     let json = serde_json::to_string_pretty(data)?;
     Ok(json)
 }
 
 /// Serializes the data, creates or updates the file and its contents.
-fn write_or_update<D: Serialize>(serializable_data: &D, file: PathBuf) -> Result<(), BurlError> {
+fn write_or_update<D: Serialize>(serializable_data: &D, file: PathBuf) -> BurlResult<()> {
     let json = serialize(serializable_data)?;
     fs::write(file, json)?;
     Ok(())
 }
 
-fn write_summary_html(stats: &Stats, file: PathBuf) -> Result<(), BurlError> {
+fn write_summary_html(stats: &Stats, file: PathBuf) -> BurlResult<()> {
     let mut template = include_str!("./templates/summary_template.html").to_string();
     template = template.replace("$SCALE$", stats.scale.clone().to_string().as_str());
 
@@ -124,6 +130,79 @@ fn write_summary_html(stats: &Stats, file: PathBuf) -> Result<(), BurlError> {
     replace_key_value(("$Q1$", stats.quartile_fst));
     replace_key_value(("$Q2$", stats.median));
     replace_key_value(("$Q3$", stats.quartile_trd));
+
+    fs::write(file, template)?;
+    Ok(())
+}
+
+fn write_baseline_summary_html(
+    stats: &Stats,
+    baseline_stats: &Stats,
+    file: PathBuf,
+) -> BurlResult<()> {
+    let mut template = include_str!("./templates/baseline_summary_template.html").to_string();
+    template = template.replace("$SCALE$", stats.scale.clone().to_string().as_str());
+    template = template.replace(
+        "$SCALE_BASELINE$",
+        baseline_stats.scale.clone().to_string().as_str(),
+    );
+
+    // TODO: add it also to console
+    if stats.scale == baseline_stats.scale {
+        let np = NormalParams::from(stats);
+        let np_baseline = NormalParams::from(baseline_stats);
+        let performance_outcome = performance_outcome(&np_baseline, &np, 0.01);
+        let performance_outcome_disp = match performance_outcome {
+            Some(PerformanceOutcome::Improved { p_value }) => {
+                format!("<font color='green'>improved (p-value {})</font>", p_value)
+            }
+            Some(PerformanceOutcome::Regressed { p_value }) => {
+                format!("<font color='red'>regressed (p-value {})</font>", p_value)
+            }
+            Some(PerformanceOutcome::NoChange) => "no significant change".to_string(),
+            None => "could not be determined".to_string(),
+        };
+        template = template.replace("$PERFORMANCE_OUTCOME$", performance_outcome_disp.as_str());
+    } else {
+        template = template.replace(
+            "$PERFORMANCE_OUTCOME$",
+            "cannot be compared due to different time scales"
+                .to_string()
+                .as_str(),
+        );
+    }
+
+    let mut replace_key_value =
+        |(key, v): (&str, f64)| template = template.replace(key, v.to_string().as_str());
+
+    // TODO: add JS to summary template instead
+    replace_key_value(("$TOTAL_BYTES$", stats.total_bytes as f64));
+    replace_key_value(("$TOTAL_BYTES_BASELINE$", baseline_stats.total_bytes as f64));
+    replace_key_value(("$N_OK$", stats.n_ok as f64));
+    replace_key_value(("$N_OK_BASELINE$", baseline_stats.n_ok as f64));
+    replace_key_value(("$N_FAILED$", stats.n_errors as f64));
+    replace_key_value(("$N_FAILED_BASELINE$", baseline_stats.n_errors as f64));
+    replace_key_value(("$N_THREADS$", stats.stats_by_thread.len() as f64));
+    replace_key_value((
+        "$N_THREADS_BASELINE$",
+        baseline_stats.stats_by_thread.len() as f64,
+    ));
+    replace_key_value(("$TOTAL_DURATION$", stats.total_duration));
+    replace_key_value(("$TOTAL_DURATION_BASELINE$", baseline_stats.total_duration));
+    replace_key_value(("$MEAN$", stats.mean));
+    replace_key_value(("$MEAN_BASELINE$", baseline_stats.mean));
+    replace_key_value(("$STDEV$", stats.std.unwrap_or(f64::NAN)));
+    replace_key_value(("$STDEV_BASELINE$", baseline_stats.std.unwrap_or(f64::NAN)));
+    replace_key_value(("$MIN$", stats.min));
+    replace_key_value(("$MIN_BASELINE$", baseline_stats.min));
+    replace_key_value(("$MAX$", stats.max));
+    replace_key_value(("$MAX_BASELINE$", baseline_stats.max));
+    replace_key_value(("$Q1$", stats.quartile_fst));
+    replace_key_value(("$Q1_BASELINE$", baseline_stats.quartile_fst));
+    replace_key_value(("$Q2$", stats.median));
+    replace_key_value(("$Q2_BASELINE$", baseline_stats.median));
+    replace_key_value(("$Q3$", stats.quartile_trd));
+    replace_key_value(("$Q3_BASELINE$", baseline_stats.quartile_trd));
 
     fs::write(file, template)?;
     Ok(())
@@ -188,11 +267,33 @@ impl<'a> ReportSummary<'a> {
         Ok(())
     }
 
-    fn create_components(&self, components_dir: Option<PathBuf>) {
+    fn baseline_results(&self, data_dir: &Path) -> Option<Stats> {
+        let baseline_dir = match &self.config.baseline_path {
+            Some(p) => PathBuf::new().join(p),
+            None => data_dir.to_path_buf(),
+        };
+
+        if !baseline_dir.exists() {
+            return None;
+        }
+
+        let baseline_results: Option<Stats> = read_data(&baseline_dir.join("stats.json")).ok();
+        baseline_results
+    }
+
+    fn create_components(
+        &self,
+        components_dir: Option<PathBuf>,
+        baseline_stats: Option<Stats>,
+    ) -> BurlResult<()> {
         if let Some(stats) = &self.stats {
             if let Some(dir) = &components_dir {
                 let file = dir.join("summary.html");
-                write_summary_html(stats, file).unwrap();
+                if let Some(bl_stats) = baseline_stats {
+                    write_baseline_summary_html(stats, &bl_stats, file)?;
+                } else {
+                    write_summary_html(stats, file)?;
+                }
             }
             plot_histogram(stats, &components_dir);
             plot_box_plot(stats, &components_dir);
@@ -210,6 +311,7 @@ impl<'a> ReportSummary<'a> {
             })
             .collect();
         plot_time_series(&time_series, &components_dir);
+        Ok(())
     }
 
     pub fn create_report(&self) -> Result<(), BurlError> {
@@ -217,10 +319,11 @@ impl<'a> ReportSummary<'a> {
             let path = Path::new(report_path);
             let (components_dir, data_dir) = setup_report_structure(path)?;
 
+            let baseline_results: Option<Stats> = self.baseline_results(&data_dir);
             self.dump_data(data_dir)?;
-            self.create_components(Some(components_dir));
+            self.create_components(Some(components_dir), baseline_results)?;
         } else {
-            self.create_components(None);
+            self.create_components(None, None)?;
         }
 
         Ok(())
