@@ -62,6 +62,10 @@ enum PerformanceOutcome {
     NoChange,
 }
 
+/// We assume:
+/// - the samples (of durations) to be independent, identical Gaussian random variables
+/// - the number of samples (for each collection) to be sufficiently large, so that the estimated std deviations are good approximations
+/// - the two sample collections (of the baseline and the the current run) to be independent with known standard deviations (see prev assumption)
 fn test_statistics(np_base: &NormalParams, np: &NormalParams) -> Option<f64> {
     // the 'combined' standard deviation
     // let s2: f64 = ((np.n_samples as f64 - 1.0) * np.std.powi(2)
@@ -91,11 +95,6 @@ fn unsigned_p_value(np_base: &NormalParams, np: &NormalParams) -> Option<f64> {
     let p_value = 1.0 - cdf_t;
     Some(p_value)
 }
-
-/// We assume:
-/// - the samples (of durations) to be independent, identical Gaussian randon variables
-/// - the number of samples (for each collection) to be sufficiently large, so that the estimated std deviations are a good approximation
-/// - the two sample collections (of the baseline and the the current run) to be independent with unknown standard deviation
 fn performance_outcome(
     np_base: &NormalParams,
     np: &NormalParams,
@@ -107,6 +106,7 @@ fn performance_outcome(
         return Some(PerformanceOutcome::NoChange);
     }
 
+    // case of significant performance change
     if np_base.mean < np.mean {
         Some(PerformanceOutcome::Regressed { p_value })
     } else {
