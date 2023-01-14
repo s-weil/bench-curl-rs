@@ -105,6 +105,7 @@ fn unsigned_p_value(np_base: &NormalParams, np: &NormalParams) -> Option<f64> {
     let p_value = 1.0 - cdf_t;
     Some(p_value)
 }
+
 pub(crate) fn performance_outcome(
     np_base: &NormalParams,
     np: &NormalParams,
