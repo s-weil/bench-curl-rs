@@ -2,7 +2,7 @@ use crate::{
     reporting::plots::{plot_box_plot, plot_histogram, plot_time_series},
     reporting::stats::Stats,
     sampling::{SampleCollector, SampleResult},
-    BenchConfig, ThreadIdx,
+    BenchConfig, BurlError, BurlResult, ThreadIdx,
 };
 use chrono::{DateTime, Utc};
 use log::{info, warn};
@@ -16,6 +16,7 @@ use std::{
 const COMPONENTS_DIR: &str = "components";
 const DATA_DIR: &str = "data";
 const FORMAT: &str = "%Y-%m-%d %H:%M:%S";
+const HIST_PATH: &str = "hist";
 
 #[derive(Serialize)]
 struct ReportMeta {
@@ -34,7 +35,39 @@ impl<'a> From<&ReportSummary<'a>> for ReportMeta {
     }
 }
 
-fn setup_report_structure(path: &Path) -> Result<(PathBuf, PathBuf), std::io::Error> {
+fn create_dir(dir: &Path) -> BurlResult<()> {
+    if dir.exists() && dir.is_dir() {
+        return Ok(());
+    }
+    fs::create_dir_all(dir)?;
+    Ok(())
+}
+
+fn hist_results(from_dir: &PathBuf) -> BurlResult<()> {
+    if !from_dir.exists() {
+        return Ok(());
+    }
+
+    let copy_dir = from_dir
+        .join(HIST_PATH)
+        .join(Utc::now().format("%Y-%m-%d__%H_%M_%S").to_string());
+
+    create_dir(&copy_dir)?;
+
+    for entry in fs::read_dir(from_dir)? {
+        let entry = entry?;
+        let src_path = entry.path();
+        if !src_path.is_dir() {
+            let target_file = copy_dir.join(entry.file_name());
+            dbg!(&target_file);
+            fs::rename(src_path.as_os_str(), target_file)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn setup_report_structure(path: &Path) -> Result<(PathBuf, PathBuf), BurlError> {
     if !path.exists() {
         fs::create_dir(path)?;
     }
@@ -59,20 +92,19 @@ fn setup_report_structure(path: &Path) -> Result<(PathBuf, PathBuf), std::io::Er
     Ok((components_dir, data_dir))
 }
 
-fn serialize<D: Serialize>(data: &D) -> Result<String, String> {
-    let json =
-        serde_json::to_string_pretty(data).map_err(|err| format!("Cannot serialize: {}", err))?;
+fn serialize<D: Serialize>(data: &D) -> Result<String, BurlError> {
+    let json = serde_json::to_string_pretty(data)?;
     Ok(json)
 }
 
 /// Serializes the data, creates or updates the file and its contents.
-fn write_or_update<D: Serialize>(serializable_data: &D, file: PathBuf) -> Result<(), String> {
+fn write_or_update<D: Serialize>(serializable_data: &D, file: PathBuf) -> Result<(), BurlError> {
     let json = serialize(serializable_data)?;
-    fs::write(file, json).map_err(|err| format!("Cannot save to file: {}", err))?;
+    fs::write(file, json)?;
     Ok(())
 }
 
-fn write_summary_html(stats: &Stats, file: PathBuf) -> Result<(), String> {
+fn write_summary_html(stats: &Stats, file: PathBuf) -> Result<(), BurlError> {
     let mut template = include_str!("./templates/summary_template.html").to_string();
     template = template.replace("$SCALE$", stats.scale.clone().to_string().as_str());
 
@@ -93,7 +125,7 @@ fn write_summary_html(stats: &Stats, file: PathBuf) -> Result<(), String> {
     replace_key_value(("$Q2$", stats.median));
     replace_key_value(("$Q3$", stats.quartile_trd));
 
-    fs::write(file, template).map_err(|err| format!("Cannot save to file: {}", err))?;
+    fs::write(file, template)?;
     Ok(())
 }
 
@@ -135,14 +167,15 @@ impl<'a> ReportSummary<'a> {
         }
     }
 
-    fn dump_data(&self, dir: PathBuf) -> Result<(), String> {
+    fn dump_data(&self, dir: PathBuf) -> Result<(), BurlError> {
         let stats_file = dir.join("stats.json");
         let samples_file = dir.join("samples.json");
         let meta_file = dir.join("meta.json");
 
         if stats_file.exists() | meta_file.exists() | samples_file.exists() {
-            // TODO: read in meta file, save copy in /dumps/report_startdate/
-            warn!("Overwriting base line results");
+            if let Err(err) = hist_results(&dir) {
+                warn!("Overwriting base line results: {}", err);
+            }
         }
 
         let report_meta = ReportMeta::from(self);
@@ -179,11 +212,10 @@ impl<'a> ReportSummary<'a> {
         plot_time_series(&time_series, &components_dir);
     }
 
-    pub fn create_report(&self) -> Result<(), String> {
+    pub fn create_report(&self) -> Result<(), BurlError> {
         if let Some(report_path) = &self.config.report_directory {
             let path = Path::new(report_path);
-            let (components_dir, data_dir) = setup_report_structure(path)
-                .map_err(|err| format!("Unable to set up report structure: {}", err))?;
+            let (components_dir, data_dir) = setup_report_structure(path)?;
 
             self.dump_data(data_dir)?;
             self.create_components(Some(components_dir));

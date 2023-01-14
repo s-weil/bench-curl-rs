@@ -1,12 +1,6 @@
 {
-  "start_time": {
-    "secs_since_epoch": 1672730723,
-    "nanos_since_epoch": 536581400
-  },
-  "end_time": {
-    "secs_since_epoch": 1672730723,
-    "nanos_since_epoch": 536581400
-  },
+  "start_time": "2023-01-14 09:56:39",
+  "end_time": "2023-01-14 09:56:40",
   "config": {
     "url": "http://127.0.0.1:8000/items",
     "method": "Post",
@@ -25,6 +19,7 @@
     "n_runs": 300,
     "n_warmup_runs": 500,
     "concurrency_level": 4,
-    "report_folder": "examples/fastapi"
+    "report_directory": "examples/fastapi/report",
+    "baseline_path": null
   }
 }
