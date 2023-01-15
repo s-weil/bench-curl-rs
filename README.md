@@ -23,6 +23,7 @@ Find sample reports for
 <img src="./resources/console_summary.png" width="300" height="400" /><br>
 <img src="./resources/durations_box_plot.png" width="600" height="300" /><br>
 <img src="./resources/durations_histogram.png" width="600" height="300" /><br>
+<img src="./resources/qq_plot.png" width="600" height="300" /><br>
 <img src="./resources/durations_timeseries.png" width="600" height="300" />
 
 
