@@ -161,3 +161,63 @@ pub fn plot_time_series(
         plot.show();
     }
 }
+
+pub fn plot_qq_curve(
+    qq_curve: &Vec<(f64, f64)>,
+    baseline_qq_curve: Option<&Vec<(f64, f64)>>,
+    output_path: &Option<PathBuf>,
+) {
+    let mut plot = Plot::new();
+
+    let mut x_percentiles: Vec<f64> = Vec::with_capacity(qq_curve.len());
+    let mut y_percentiles = Vec::with_capacity(qq_curve.len());
+
+    for (x, y) in qq_curve.iter() {
+        x_percentiles.push(*x);
+        y_percentiles.push(*y);
+    }
+
+    let qq_trace = Scatter::new(x_percentiles, y_percentiles)
+        .mode(Mode::Markers)
+        .name("current run")
+        // .line(Line::new().shape(LineShape::Hv))
+        .marker(Marker::new().color(Rgb::new(0, 0, 200)));
+    plot.add_trace(qq_trace);
+
+    if let Some(bl_qq) = baseline_qq_curve {
+        let mut x_percentiles: Vec<f64> = Vec::with_capacity(bl_qq.len());
+        let mut y_percentiles = Vec::with_capacity(bl_qq.len());
+
+        for (x, y) in bl_qq.iter() {
+            x_percentiles.push(*x);
+            y_percentiles.push(*y);
+        }
+
+        let baseline_qq_trace = Scatter::new(x_percentiles, y_percentiles)
+            .mode(Mode::Markers)
+            .name("baseline")
+            .marker(Marker::new().color(Rgb::new(200, 0, 0)));
+        plot.add_trace(baseline_qq_trace);
+    }
+
+    let ts_layout = Layout::new()
+        .title(Title::new("QQ Plot"))
+        .x_axis(
+            Axis::new()
+                .title(Title::new("percentiles of normal distribution"))
+                .zero_line(true),
+        )
+        .y_axis(
+            Axis::new()
+                .title(Title::new("percentile of duration distribution"))
+                .zero_line(true),
+        );
+    plot.set_layout(ts_layout);
+
+    if let Some(path) = output_path {
+        let file_name = path.join("qq_plot.html");
+        plot.to_html(file_name);
+    } else {
+        plot.show();
+    }
+}

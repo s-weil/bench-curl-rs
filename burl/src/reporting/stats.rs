@@ -33,10 +33,10 @@ fn percentile(samples: &[f64], level: f64, n: f64) -> f64 {
     samples[idx]
 }
 
-/// The biased sample standard deviation.
+/// The unbiased sample standard deviation.
 fn standard_deviation(samples: &[f64], mean: f64) -> Option<f64> {
-    let len = samples.len();
-    if len <= 1 {
+    let n_samples = samples.len();
+    if n_samples <= 1 {
         return None;
     }
     let squared_errors = samples.iter().fold(0.0, |acc, d| {
@@ -44,7 +44,7 @@ fn standard_deviation(samples: &[f64], mean: f64) -> Option<f64> {
         acc + error
     });
 
-    let mean_squared_errors = squared_errors / len as f64; //(len - 1) as f64; which version to go with, biased or unbiased?
+    let mean_squared_errors = squared_errors / (n_samples - 1) as f64;
     let std = mean_squared_errors.sqrt();
     Some(std)
 }
@@ -116,6 +116,7 @@ pub(crate) fn performance_outcome(
     if p_value > alpha {
         return Some(PerformanceOutcome::NoChange);
     }
+    // TODO: checke wann es wirklich significant ist. sind die scales korrekt?
 
     // case of significant performance change
     if np_base.mean < np.mean {
@@ -123,6 +124,20 @@ pub(crate) fn performance_outcome(
     } else {
         Some(PerformanceOutcome::Improved { p_value })
     }
+}
+
+fn normal_qq(percentiles_by_level: &Vec<(f64, f64)>, np: &NormalParams) -> Vec<(f64, f64)> {
+    let normal = Normal::new(np.mean, np.std).unwrap();
+
+    let qq = percentiles_by_level
+        .iter()
+        .map(|(level, percentile)| {
+            let normal_percentile = normal.inverse_cdf(*level / 100.0);
+            (normal_percentile, *percentile)
+        })
+        .collect();
+
+    qq
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -229,8 +244,8 @@ pub struct Stats {
 
     pub stats_by_thread: HashMap<ThreadIdx, ThreadStats>,
     /// Percentiles 1% 5% 10% 20% 30% 40% 50% 60% 70% 80% 90% 95% 99%
-    #[serde(skip_deserializing)]
-    percentiles: Vec<(f64, f64)>,
+    // #[serde(skip_deserializing)]
+    pub percentiles: Vec<(f64, f64)>,
     // TODO: provide overview of errors - tbd if actually interestering or a corner case
     // TODO: outliers
 }
@@ -244,22 +259,22 @@ impl Display for Stats {
             &self.scale,
             &self.stats_by_thread.len()
         )?;
-        writeln!(f, "Total bytes      | {}", self.total_bytes)?;
-        writeln!(f, "Number ok        | {}", self.n_ok)?;
-        writeln!(f, "Number failed    | {}", self.n_errors)?;
+        writeln!(f, "Total bytes    | {}", self.total_bytes)?;
+        writeln!(f, "Number ok      | {}", self.n_ok)?;
+        writeln!(f, "Number failed  | {}", self.n_errors)?;
         writeln!(f, "_______DURATIONS_______________________________")?;
-        writeln!(f, "Total            | {}", self.total_duration)?;
-        writeln!(f, "Mean             | {}", self.mean)?;
+        writeln!(f, "Total          | {}", self.total_duration)?;
+        writeln!(f, "Mean           | {}", self.mean)?;
         // writeln!(f, "Requests per sec | {}", self.mean)?;
 
         if let Some(std) = self.std {
             writeln!(f, "StdDev           | {}", std)?;
         }
-        writeln!(f, "Min              | {}", self.min)?;
-        writeln!(f, "Quartile 1st     | {}", self.quartile_fst)?;
-        writeln!(f, "Median           | {}", self.median)?;
-        writeln!(f, "Quartile 3rd     | {}", self.quartile_trd)?;
-        writeln!(f, "Max              | {}", self.max)?;
+        writeln!(f, "Min            | {}", self.min)?;
+        writeln!(f, "Quartile 1st   | {}", self.quartile_fst)?;
+        writeln!(f, "Median         | {}", self.median)?;
+        writeln!(f, "Quartile 3rd   | {}", self.quartile_trd)?;
+        writeln!(f, "Max            | {}", self.max)?;
 
         if self.n_ok >= 12 {
             writeln!(f, "_______PERCENTILES_____________________________")?;
@@ -343,6 +358,20 @@ impl Stats {
         )
     }
 
+    pub fn normal_qq_curve(&self) -> Vec<(f64, f64)> {
+        if let Some(std) = self.std {
+            let np = NormalParams {
+                mean: self.mean,
+                std,
+                n_samples: self.n_ok,
+            };
+
+            normal_qq(&self.percentiles, &np)
+        } else {
+            Vec::with_capacity(0)
+        }
+    }
+
     pub fn calculate(
         scale: DurationScale,
         n_errors: usize,
@@ -374,9 +403,19 @@ impl Stats {
         let min = *durations.first().unwrap();
         let max = *durations.last().unwrap();
 
+        // TODO: choose a better set of percentiles
         let percentiles: Vec<(f64, f64)> = PERCENTILE_LEVELS
             .into_iter()
             .map(|level| (level * 100.0, percentile(&durations, level, n as f64)))
+            .collect();
+
+        let percentiles = (1..20)
+            .map(|level| {
+                (
+                    level as f64 * 100.0 / 20.0,
+                    percentile(&durations, level as f64 / 20.0, n as f64),
+                )
+            })
             .collect();
 
         Some(Stats {
@@ -402,9 +441,8 @@ impl Stats {
 
 #[cfg(test)]
 mod tests {
-    use statrs::distribution::Normal;
-
     use super::*;
+    use statrs::distribution::Normal;
 
     #[test]
     fn test_percentile() {
@@ -429,7 +467,8 @@ mod tests {
         assert_eq!(mean, 5.0);
         let std = standard_deviation(&samples, mean);
         assert!(std.is_some());
-        assert_eq!(std.unwrap(), 2.0);
+        // assert_eq!(std.unwrap(), 2.0);
+        assert_eq!(std.unwrap(), 2.138089935299395);
     }
 
     #[test]
@@ -465,7 +504,6 @@ mod tests {
         let u_p_value = unsigned_p_value(&np_base, &np_new);
 
         assert!(u_p_value.is_some());
-        let n = Normal::new(0.0, 1.0).unwrap();
         assert_eq!(u_p_value.unwrap(), 0.009109785650170843);
     }
 
@@ -482,11 +520,11 @@ mod tests {
             n_samples: 50,
         };
 
-        let perf_outcome = performance_outcome(&np_base, &np_new, 0.01);
+        let perf_outcome = performance_outcome(&np_base, &np_new, 0.005);
         assert!(perf_outcome.is_some());
         assert_eq!(perf_outcome.unwrap(), PerformanceOutcome::NoChange);
 
-        let perf_outcome = performance_outcome(&np_base, &np_new, 0.005);
+        let perf_outcome = performance_outcome(&np_base, &np_new, 0.01);
         assert!(perf_outcome.is_some());
         assert_eq!(
             perf_outcome.unwrap(),
@@ -495,7 +533,7 @@ mod tests {
             }
         );
 
-        let perf_outcome = performance_outcome(&np_new, &np_base, 0.005);
+        let perf_outcome = performance_outcome(&np_new, &np_base, 0.01);
         assert!(perf_outcome.is_some());
         assert_eq!(
             perf_outcome.unwrap(),

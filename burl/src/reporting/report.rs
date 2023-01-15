@@ -1,6 +1,6 @@
 use crate::reporting::stats::{performance_outcome, NormalParams, PerformanceOutcome};
 use crate::{
-    reporting::plots::{plot_box_plot, plot_histogram, plot_time_series},
+    reporting::plots::{plot_box_plot, plot_histogram, plot_qq_curve, plot_time_series},
     reporting::stats::Stats,
     sampling::{SampleCollector, SampleResult},
     BenchConfig, BurlError, BurlResult, ThreadIdx,
@@ -291,8 +291,14 @@ impl<'a> ReportSummary<'a> {
                 let file = dir.join("summary.html");
                 if let Some(bl_stats) = baseline_stats {
                     write_baseline_summary_html(stats, &bl_stats, file)?;
+
+                    let baseline_qq_curve = bl_stats.normal_qq_curve();
+                    let qq_curve = stats.normal_qq_curve();
+                    plot_qq_curve(&qq_curve, Some(&baseline_qq_curve), &components_dir);
                 } else {
                     write_summary_html(stats, file)?;
+                    let qq_curve = stats.normal_qq_curve();
+                    plot_qq_curve(&qq_curve, None, &components_dir);
                 }
             }
             plot_histogram(stats, &components_dir);
