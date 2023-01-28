@@ -116,7 +116,7 @@ pub(crate) fn performance_outcome(
     if p_value > alpha {
         return Some(PerformanceOutcome::NoChange);
     }
-    // TODO: checke wann es wirklich significant ist. sind die scales korrekt?
+    // TODO: check if correct (scales, significant)
 
     // case of significant performance change
     if np_base.mean < np.mean {
@@ -276,7 +276,7 @@ impl Display for Stats {
         writeln!(f, "Quartile 3rd   | {}", self.quartile_trd)?;
         writeln!(f, "Max            | {}", self.max)?;
 
-        if self.n_ok >= 12 {
+        if self.n_ok >= N_PERCENTILES {
             writeln!(f, "_______PERCENTILES_____________________________")?;
             for (level, percentile) in self.percentiles.iter() {
                 writeln!(f, "{}%    {}", level, percentile)?;
@@ -316,6 +316,8 @@ impl Display for Stats {
 static PERCENTILE_LEVELS: [f64; 13] = [
     0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99,
 ];
+
+static N_PERCENTILES: usize = 20;
 
 impl Stats {
     /// Collect the sample results from the threads' samples.
@@ -409,7 +411,7 @@ impl Stats {
             .map(|level| (level * 100.0, percentile(&durations, level, n as f64)))
             .collect();
 
-        let percentiles = (1..20)
+        let percentiles = (1..N_PERCENTILES)
             .map(|level| {
                 (
                     level as f64 * 100.0 / 20.0,

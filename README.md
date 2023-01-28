@@ -1,5 +1,9 @@
 ![Burl-rs](./resources/burl_logo.svg)
 
+#### Disclaimer
+
+This is work in progress!
+
 <b>Burl</b> is a statistics-driven benchmarking tool and load generator for http-webapplications, written in Rust.
 Measure KPIs of your endpoints, compare different versions of them and analyze the performance with the provided reports, containing plots and result data.
 Run Burl as CLI tool and manage your setup conveniently with config files.
