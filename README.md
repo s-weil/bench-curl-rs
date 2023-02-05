@@ -37,7 +37,7 @@ Find sample reports for
 * docs, doctests, manuals,etc
 * improve error handling
 * cli improvement and clarification
-* client builder
+* client builder (pattern)
 * stats-extension:
     * reuse (baseline) results for comparison  
     * confidence interval

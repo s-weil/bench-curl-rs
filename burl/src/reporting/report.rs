@@ -1,7 +1,7 @@
 use crate::reporting::stats::{performance_outcome, NormalParams, PerformanceOutcome};
 use crate::{
     reporting::plots::{plot_box_plot, plot_histogram, plot_qq_curve, plot_time_series},
-    reporting::stats::Stats,
+    reporting::StatsSummary,
     sampling::{SampleCollector, SampleResult},
     BenchConfig, BurlError, BurlResult, ThreadIdx,
 };
@@ -110,7 +110,7 @@ fn write_or_update<D: Serialize>(serializable_data: &D, file: PathBuf) -> BurlRe
     Ok(())
 }
 
-fn write_summary_html(stats: &Stats, file: PathBuf) -> BurlResult<()> {
+fn write_summary_html(stats: &StatsSummary, file: PathBuf) -> BurlResult<()> {
     let mut template = include_str!("./templates/summary_template.html").to_string();
     template = template.replace("$SCALE$", stats.scale.clone().to_string().as_str());
 
@@ -136,8 +136,8 @@ fn write_summary_html(stats: &Stats, file: PathBuf) -> BurlResult<()> {
 }
 
 fn write_baseline_summary_html(
-    stats: &Stats,
-    baseline_stats: &Stats,
+    stats: &StatsSummary,
+    baseline_stats: &StatsSummary,
     file: PathBuf,
 ) -> BurlResult<()> {
     let mut template = include_str!("./templates/baseline_summary_template.html").to_string();
@@ -211,7 +211,7 @@ fn write_baseline_summary_html(
 pub struct ReportSummary<'a> {
     config: &'a BenchConfig,
     sample_results_by_thread: HashMap<ThreadIdx, Vec<SampleResult>>,
-    pub stats: Option<Stats>,
+    pub stats: Option<StatsSummary>,
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
 }
@@ -223,7 +223,7 @@ impl<'a> ReportSummary<'a> {
         config: &'a BenchConfig,
         samples_by_thread: Vec<SampleCollector>,
     ) -> Self {
-        let stats = Stats::collect(&samples_by_thread, config.duration_scale());
+        let stats = StatsSummary::collect(&samples_by_thread, config.duration_scale());
 
         let sample_results_by_thread = samples_by_thread
             .into_iter()
@@ -267,7 +267,8 @@ impl<'a> ReportSummary<'a> {
         Ok(())
     }
 
-    fn baseline_results(&self, data_dir: &Path) -> Option<Stats> {
+    fn baseline_results(&self, data_dir: &Path) -> Option<StatsSummary> {
+        // TODO: does this work?
         let baseline_dir = match &self.config.baseline_path {
             Some(p) => PathBuf::new().join(p),
             None => data_dir.to_path_buf(),
@@ -277,14 +278,15 @@ impl<'a> ReportSummary<'a> {
             return None;
         }
 
-        let baseline_results: Option<Stats> = read_data(&baseline_dir.join("stats.json")).ok();
+        let baseline_results: Option<StatsSummary> =
+            read_data(&baseline_dir.join("stats.json")).ok();
         baseline_results
     }
 
     fn create_components(
         &self,
         components_dir: Option<PathBuf>,
-        baseline_stats: Option<Stats>,
+        baseline_stats: Option<StatsSummary>,
     ) -> BurlResult<()> {
         if let Some(stats) = &self.stats {
             if let Some(dir) = &components_dir {
@@ -325,7 +327,7 @@ impl<'a> ReportSummary<'a> {
             let path = Path::new(report_path);
             let (components_dir, data_dir) = setup_report_structure(path)?;
 
-            let baseline_results: Option<Stats> = self.baseline_results(&data_dir);
+            let baseline_results: Option<StatsSummary> = self.baseline_results(&data_dir);
             self.dump_data(data_dir)?;
             self.create_components(Some(components_dir), baseline_results)?;
         } else {

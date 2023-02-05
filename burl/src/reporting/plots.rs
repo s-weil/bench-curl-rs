@@ -1,4 +1,4 @@
-use crate::reporting::stats::Stats;
+use crate::reporting::StatsSummary;
 use crate::ThreadIdx;
 use plotly::box_plot::{BoxMean, BoxPoints};
 use plotly::common::{Line, LineShape, Marker, Mode, Title};
@@ -19,7 +19,7 @@ fn rgb_color(thread_idx: usize, n_threads: usize) -> Rgb {
     Rgb::new(scale, min as u8, scale)
 }
 
-pub fn plot_box_plot(stats: &Stats, output_path: &Option<PathBuf>) {
+pub fn plot_box_plot(stats: &StatsSummary, output_path: &Option<PathBuf>) {
     let mut plot = Plot::new();
 
     let layout = Layout::new()
@@ -67,7 +67,7 @@ pub fn plot_box_plot(stats: &Stats, output_path: &Option<PathBuf>) {
     }
 }
 
-pub fn plot_histogram(stats: &Stats, output_path: &Option<PathBuf>) {
+pub fn plot_histogram(stats: &StatsSummary, output_path: &Option<PathBuf>) {
     let mut plot = Plot::new();
 
     let layout = Layout::new()
