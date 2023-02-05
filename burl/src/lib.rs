@@ -1,9 +1,11 @@
 mod config;
+mod errors;
 mod reporting;
 mod sampling;
 
 pub use config::BenchConfig;
 pub(crate) use config::ConcurrenyLevel;
+pub use errors::{BurlError, BurlResult};
 
 use chrono::Utc;
 use log::{error, info};

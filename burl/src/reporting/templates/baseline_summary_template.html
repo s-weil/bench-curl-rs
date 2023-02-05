@@ -44,56 +44,88 @@
 
 <table>
     <tr>
+        <td><b/></td>
+        <td><b/>CURRENT</td>
+        <td><b/>BASELINE</td>
+    </tr>
+    <tr>
         <td><b/>Total Bytes</td>
         <td>$TOTAL_BYTES$</td>
+        <td>$TOTAL_BYTES_BASELINE$</td>
     </tr>
     <tr>
         <td><b/>Number OK</td>
         <td>$N_OK$</td>
+        <td>$N_OK_BASELINE$</td>
     </tr>
     <tr>
         <td><b/>Number Failed</td>
         <td>$N_FAILED$</td>
+        <td>$N_FAILED_BASELINE$</td>
     </tr>   
     <tr>
         <td><b/>Number Threads</td>
         <td>$N_THREADS$</td>
+        <td>$N_THREADS_BASELINE$</td>
     </tr>   
 </table>
 
-<h3>Durations (in $SCALE$s)</h3>
+<h3>Durations</h3>
+
+<i>The performance of the current run (vs. the baseline):</i><br>
+<b>$PERFORMANCE_OUTCOME$</b>.
+<br><br>
+
 <table>
+  <tr>
+      <td><b/></td>
+      <td><b/>CURRENT</td>
+      <td><b/>BASELINE</td>
+  </tr>
+  <tr>
+      <td><b/>Scale</td>
+      <td>$SCALE$s</td>
+      <td>$SCALE_BASELINE$s</td>
+  </tr>
     <tr>
         <td><b/>Total</td>
         <td>$TOTAL_DURATION$</td>
+        <td>$TOTAL_DURATION_BASELINE$</td>
     </tr>
     <tr>
         <td><b/>Mean</td>
         <td>$MEAN$</td>
+        <td>$MEAN_BASELINE$</td>
     </tr>
     <tr>
         <td><b/>StdDev</td>
         <td>$STDEV$</td>
+        <td>$STDEV_BASELINE$</td>
     </tr>
     <tr>
         <td><b/>Min</td>
         <td>$MIN$</td>
+        <td>$MIN_BASELINE$</td>
     </tr>
     <tr>
         <td><b/>Quartile 1st</td>
         <td>$Q1$</td>
+        <td>$Q1_BASELINE$</td>
     </tr>
     <tr>
         <td><b/>Median</td>
         <td>$Q2$</td>
+        <td>$Q2_BASELINE$</td>
     </tr>
     <tr>
         <td><b/>Quartile 3rd</td>
         <td>$Q3$</td>
+        <td>$Q3_BASELINE$</td>
     </tr>
     <tr>
         <td><b/>Max</td>
         <td>$MAX$</td>
+        <td>$MAX_BASELINE$</td>
     </tr>
 </table>
   

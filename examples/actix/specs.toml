@@ -25,13 +25,13 @@ n_runs = 300                            # default=300
 n_warmup_runs = 500                     # default=0
 concurrency_level = 4                   # default=1
 duration_scale = "Micro"                # Secs | Milli | Micro(Default) | Nano 
-report_folder = "examples/actix/report"
+report_directory = "examples/actix/report"
+# baseline_path = "examples/fastapi/report/data"
 
 headers = [
     [
         "Content-Type",
-        "application/json",
-        # "application/json; charset=UTF-8",
+        "application/json"
     ],
     # [
     #     "content-encoding",

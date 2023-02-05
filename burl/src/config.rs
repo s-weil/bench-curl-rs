@@ -2,7 +2,7 @@ use crate::sampling::Method;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Default, Deserialize, Debug, Clone, Serialize)]
+#[derive(Default, Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum DurationScale {
     Nano,
     #[default]
@@ -32,39 +32,45 @@ pub enum ConcurrenyLevel {
 
 // TODO: structure into sub types
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
-
 pub struct BenchConfig {
     pub url: String,
     pub method: Method,
+    #[serde(alias = "disableCertificateValidation")]
     pub disable_certificate_validation: Option<bool>,
     // pub headers: HashMap<String, String>,
     pub headers: Option<Vec<(String, String)>>,
-    // #[serde(rename = "jsonPayload")]
+    #[serde(alias = "jsonPayload")]
     pub json_payload: Option<String>,
+    #[serde(alias = "jsonPayloadReference")]
+    #[serde(alias = "jsonPayloadRef")]
     pub json_payload_ref: Option<String>,
-    // #[serde(rename = "gqlQuery")]
+    #[serde(alias = "gqlQuery")]
     pub gql_query: Option<String>,
 
-    // #[serde(rename = "bearerToken")]
+    #[serde(alias = "bearerToken")]
     pub bearer_token: Option<String>,
 
-    // #[serde(rename = "durationScale")]
+    #[serde(alias = "durationScale")]
     duration_scale: Option<DurationScale>,
 
-    // #[serde(rename = "numberRuns")]
+    #[serde(alias = "numberRuns")]
+    #[serde(alias = "nRuns")]
     n_runs: Option<usize>,
-    // #[serde(rename = "numberWarmupRuns")]
+    #[serde(alias = "numberWarmupRuns")]
+    #[serde(alias = "nWarmupRuns")]
     n_warmup_runs: Option<usize>,
 
-    // #[serde(rename = "concurrencyLevel")]
+    #[serde(alias = "concurrencyLevel")]
     concurrency_level: Option<usize>,
 
-    pub report_folder: Option<String>,
+    #[serde(alias = "reportDirectory")]
+    pub report_directory: Option<String>,
+    #[serde(alias = "baselinePath")]
+    pub baseline_path: Option<String>,
     // TODO:
-    // * output path for results etc
     // * randomized requests / vec of payloads
     // * logging param with level?
-    // #[serde(rename = "jsonPayloads")]
+    // #[serde(alias = "jsonPayloads")]
     // json_payloads: Option<Vec<String>>,
 }
 
