@@ -268,18 +268,31 @@ impl<'a> ReportSummary<'a> {
     }
 
     fn baseline_results(&self, data_dir: &Path) -> Option<StatsSummary> {
-        // TODO: does this work?
+        // TODO: fix it, doesnt work yet
         let baseline_dir = match &self.config.baseline_path {
             Some(p) => PathBuf::new().join(p),
             None => data_dir.to_path_buf(),
         };
 
         if !baseline_dir.exists() {
+            warn!(
+                "Specified baseline directory does not exist: {:?}",
+                baseline_dir.as_os_str()
+            );
             return None;
         }
 
-        let baseline_results: Option<StatsSummary> =
-            read_data(&baseline_dir.join("stats.json")).ok();
+        let results_file = &baseline_dir.join("stats.json");
+
+        if !results_file.exists() {
+            warn!(
+                "Expected file does not exist: {:?}",
+                results_file.as_os_str()
+            );
+            return None;
+        }
+
+        let baseline_results: Option<StatsSummary> = read_data(&results_file).ok();
         baseline_results
     }
 

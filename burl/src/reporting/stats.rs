@@ -39,9 +39,9 @@ pub fn standard_deviation(samples: &[f64], mean: f64) -> Option<f64> {
 }
 
 pub struct NormalParams {
-    pub(crate) mean: f64,
-    pub(crate) std: f64,
-    pub(crate) n_samples: usize,
+    pub mean: f64,
+    pub std: f64,
+    pub n_samples: usize,
 }
 
 #[derive(Debug, PartialEq)]
@@ -117,8 +117,6 @@ pub fn normal_qq(percentiles_by_level: &[(f64, f64)], np: &NormalParams) -> Vec<
 
     qq
 }
-
-static N_PERCENTILES: usize = 20;
 
 #[cfg(test)]
 mod tests {

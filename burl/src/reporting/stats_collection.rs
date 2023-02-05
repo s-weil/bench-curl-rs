@@ -112,11 +112,15 @@ pub struct StatsSummary {
 
     pub stats_by_thread: HashMap<ThreadIdx, ThreadStats>,
     /// Percentiles 1% 5% 10% 20% 30% 40% 50% 60% 70% 80% 90% 95% 99%
-    // #[serde(skip_deserializing)]
-    pub percentiles: Vec<(f64, f64)>,
+    #[serde(skip_deserializing)]
+    pub display_percentiles: Vec<(f64, f64)>,
+
+    pub qq_percentiles: Vec<(f64, f64)>,
     // TODO: provide overview of errors - tbd if actually interestering or a corner case
     // TODO: outliers
 }
+
+const N_PERCENTILES: usize = 20;
 
 impl Display for StatsSummary {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -136,7 +140,7 @@ impl Display for StatsSummary {
         // writeln!(f, "Requests per sec | {}", self.mean)?;
 
         if let Some(std) = self.std {
-            writeln!(f, "StdDev           | {}", std)?;
+            writeln!(f, "StdDev        | {}", std)?;
         }
         writeln!(f, "Min            | {}", self.min)?;
         writeln!(f, "Quartile 1st   | {}", self.quartile_fst)?;
@@ -146,7 +150,7 @@ impl Display for StatsSummary {
 
         if self.n_ok >= N_PERCENTILES {
             writeln!(f, "_______PERCENTILES_____________________________")?;
-            for (level, percentile) in self.percentiles.iter() {
+            for (level, percentile) in self.display_percentiles.iter() {
                 writeln!(f, "{}%    {}", level, percentile)?;
             }
         }
@@ -194,8 +198,6 @@ impl From<&StatsSummary> for NormalParams {
 static PERCENTILE_LEVELS: [f64; 13] = [
     0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99,
 ];
-
-static N_PERCENTILES: usize = 20;
 
 impl StatsSummary {
     /// Collect the sample results from the threads' samples.
@@ -246,7 +248,7 @@ impl StatsSummary {
                 n_samples: self.n_ok,
             };
 
-            normal_qq(&self.percentiles, &np)
+            normal_qq(&self.qq_percentiles, &np)
         } else {
             Vec::with_capacity(0)
         }
@@ -283,17 +285,17 @@ impl StatsSummary {
         let min = *durations.first().unwrap();
         let max = *durations.last().unwrap();
 
-        // // TODO: choose a better set of percentiles
-        // let percentiles: Vec<(f64, f64)> = PERCENTILE_LEVELS
-        //     .into_iter()
-        //     .map(|level| (level * 100.0, percentile(&durations, level, n as f64)))
-        //     .collect();
+        let display_percentiles: Vec<(f64, f64)> = PERCENTILE_LEVELS
+            .into_iter()
+            .map(|level| (level * 100.0, percentile(&durations, level, n as f64)))
+            .collect();
 
-        let percentiles = (1..N_PERCENTILES)
+        let n_percentiles = durations.len() / 10;
+        let qq_percentiles = (1..n_percentiles)
             .map(|level| {
                 (
-                    level as f64 * 100.0 / (N_PERCENTILES as f64),
-                    percentile(&durations, level as f64 / 20.0, n as f64),
+                    level as f64 * 100.0 / (n_percentiles as f64),
+                    percentile(&durations, level as f64 / (n_percentiles as f64), n as f64),
                 )
             })
             .collect();
@@ -314,7 +316,8 @@ impl StatsSummary {
             errors,
             n_ok: n - n_errors,
             stats_by_thread,
-            percentiles,
+            qq_percentiles,
+            display_percentiles,
         })
     }
 }
