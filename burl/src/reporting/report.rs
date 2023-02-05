@@ -268,7 +268,6 @@ impl<'a> ReportSummary<'a> {
     }
 
     fn baseline_results(&self, data_dir: &Path) -> Option<StatsSummary> {
-        // TODO: fix it, doesnt work yet
         let baseline_dir = match &self.config.baseline_path {
             Some(p) => PathBuf::new().join(p),
             None => data_dir.to_path_buf(),
