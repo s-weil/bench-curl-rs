@@ -22,6 +22,24 @@ impl fmt::Display for DurationScale {
     }
 }
 
+impl DurationScale {
+    pub fn scale(&self) -> usize {
+        match self {
+            DurationScale::Nano => 1_000_000_000,
+            DurationScale::Micro => 1_000_000,
+            DurationScale::Milli => 1_000,
+            DurationScale::Secs => 1,
+        }
+    }
+
+    /// The factor for `self / other`.
+    pub fn factor(&self, other: &DurationScale) -> f64 {
+        let f_self = self.scale();
+        let f_other = other.scale();
+        f_self as f64 / f_other as f64
+    }
+}
+
 #[derive(Default, Debug, Deserialize)]
 pub enum ConcurrenyLevel {
     #[default]

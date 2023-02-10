@@ -124,6 +124,7 @@ fn write_summary_html(stats: &StatsSummary, file: PathBuf) -> BurlResult<()> {
     replace_key_value(("$N_THREADS$", stats.stats_by_thread.len() as f64));
     replace_key_value(("$TOTAL_DURATION$", stats.total_duration));
     replace_key_value(("$MEAN$", stats.mean));
+    replace_key_value(("$RPS$", stats.mean_rps.unwrap_or(f64::NAN)));
     replace_key_value(("$STDEV$", stats.std.unwrap_or(f64::NAN)));
     replace_key_value(("$MIN$", stats.min));
     replace_key_value(("$MAX$", stats.max));
@@ -191,6 +192,11 @@ fn write_baseline_summary_html(
     replace_key_value(("$TOTAL_DURATION_BASELINE$", baseline_stats.total_duration));
     replace_key_value(("$MEAN$", stats.mean));
     replace_key_value(("$MEAN_BASELINE$", baseline_stats.mean));
+    replace_key_value(("$RPS$", stats.mean_rps.unwrap_or(f64::NAN)));
+    replace_key_value((
+        "$RPS_BASELINE$",
+        baseline_stats.mean_rps.unwrap_or(f64::NAN),
+    ));
     replace_key_value(("$STDEV$", stats.std.unwrap_or(f64::NAN)));
     replace_key_value(("$STDEV_BASELINE$", baseline_stats.std.unwrap_or(f64::NAN)));
     replace_key_value(("$MIN$", stats.min));

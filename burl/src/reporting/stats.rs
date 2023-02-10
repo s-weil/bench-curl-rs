@@ -1,5 +1,16 @@
+use crate::config::DurationScale;
 use statrs::distribution::ContinuousCDF;
 use statrs::distribution::Normal;
+
+const ZERO_THRESHOLD: f64 = 1e-16;
+
+pub fn requests_per_sec(req_per_duration: f64, scale: &DurationScale) -> Option<f64> {
+    if req_per_duration < ZERO_THRESHOLD {
+        return None;
+    }
+    let rps = scale.factor(&DurationScale::Secs) as f64 / req_per_duration;
+    Some(rps)
+}
 
 pub fn sum(durations: &[f64]) -> f64 {
     durations.iter().fold(0.0, |acc, dur| acc + dur)
@@ -121,6 +132,25 @@ pub fn normal_qq(percentiles_by_level: &[(f64, f64)], np: &NormalParams) -> Vec<
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn requests_per_sec() {
+        let mean = 0.0;
+        let rps = super::requests_per_sec(mean, &DurationScale::Milli);
+        assert!(rps.is_none());
+
+        let mean = 100.0;
+        let rps = super::requests_per_sec(mean, &DurationScale::Milli);
+        assert_eq!(rps, Some(10.0));
+
+        let mean = 100.0;
+        let rps = super::requests_per_sec(mean, &DurationScale::Micro);
+        assert_eq!(rps, Some(10_000.0));
+
+        let mean = 100.0;
+        let rps = super::requests_per_sec(mean, &DurationScale::Nano);
+        assert_eq!(rps, Some(10_000_000.0));
+    }
 
     #[test]
     fn percentile() {
