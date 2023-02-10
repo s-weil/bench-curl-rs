@@ -297,7 +297,7 @@ impl<'a> ReportSummary<'a> {
             return None;
         }
 
-        let baseline_results: Option<StatsSummary> = read_data(&results_file).ok();
+        let baseline_results: Option<StatsSummary> = read_data(results_file).ok();
         baseline_results
     }
 

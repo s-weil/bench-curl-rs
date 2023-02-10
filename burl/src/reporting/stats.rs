@@ -1,4 +1,5 @@
 use crate::config::DurationScale;
+use rand::Rng;
 use statrs::distribution::ContinuousCDF;
 use statrs::distribution::Normal;
 
@@ -8,7 +9,7 @@ pub fn requests_per_sec(req_per_duration: f64, scale: &DurationScale) -> Option<
     if req_per_duration < ZERO_THRESHOLD {
         return None;
     }
-    let rps = scale.factor(&DurationScale::Secs) as f64 / req_per_duration;
+    let rps = scale.factor(&DurationScale::Secs) / req_per_duration;
     Some(rps)
 }
 
@@ -127,6 +128,48 @@ pub fn normal_qq(percentiles_by_level: &[(f64, f64)], np: &NormalParams) -> Vec<
         .collect();
 
     qq
+}
+
+pub struct BootstrapSampler<'a> {
+    samples: &'a [f64],
+}
+
+use rand::distributions::Uniform;
+
+impl<'a> BootstrapSampler<'a> {
+    pub fn new(samples: &'a [f64]) -> Self {
+        Self { samples }
+    }
+
+    fn seed_rng<F>(&self) -> F
+    where
+        F: rand::SeedableRng + rand::RngCore,
+    {
+        // let random_seed = rand::thread_rng().sample(rand_distr::Uniform::new(
+        //     0u64,
+        //     (self.samples.len() - 1) as u64,
+        // ));
+        F::seed_from_u64(0u64)
+    }
+
+    fn simulate_samples<F: rand::RngCore>(&self, rng: &mut F, n: usize) -> Vec<f64> {
+        let distr = Uniform::new(0, self.samples.len());
+        let sampler = rng.sample_iter(distr);
+        sampler.take(n).map(|idx| self.samples[idx]).collect()
+    }
+
+    pub fn sample_means(&self, n: usize, n_samples: usize) -> Vec<f64> {
+        let mut rng = rand::thread_rng();
+        // let mut rng: rand::rngs::ThreadRng = self.rng();
+        let mut samples = Vec::with_capacity(n_samples);
+
+        for _ in 0..n_samples {
+            let resampled = self.simulate_samples(&mut rng, n);
+            let mean = sum(&resampled) / resampled.len() as f64;
+            samples.push(mean);
+        }
+        samples
+    }
 }
 
 #[cfg(test)]

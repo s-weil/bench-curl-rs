@@ -3,6 +3,7 @@
 #### Disclaimer
 
 This is work in progress!
+<br>
 
 <b>Burl</b> is a statistics-driven benchmarking tool and load generator for http-webapplications, written in Rust.
 Measure KPIs of your endpoints, compare different versions of them and analyze the performance with the provided reports, containing plots and result data.
@@ -10,7 +11,7 @@ Run Burl as CLI tool and manage your setup conveniently with config files.
 
 #### Related work
 
-Related to Burl is the HTTP load generator [hey](https://github.com/rakyll/hey). A further source of inspiration was [criterion.rs](https://github.com/bheisler/criterion.rs) which is a statistics-driven microbenchmarking tool for your Rust code.
+Related to Burl is the HTTP load generator [hey](https://github.com/rakyll/hey). A further source of inspiration was [criterion.rs](https://github.com/bheisler/criterion.rs) which is a statistics-driven microbenchmarking library for your Rust code.
 
 
 ### Examples
@@ -45,6 +46,7 @@ Find sample reports for
     * bivariate metrics for comparison of runs
 * reuse connections / persistence, see e.g. https://twitter.com/mlafeldt/status/1437411223948103683 or https://users.rust-lang.org/t/hyper-reqwest-connection-not-being-kept-alive/10895/5
 * -> support jupyter notebooks! via python api
+* support via UI / wasm / etc / run with docker?
 * use health endpoints as reference / base
 * input randomizer (param to folder with json_payloads)
 * functionality for A/B testing / testing different suites
