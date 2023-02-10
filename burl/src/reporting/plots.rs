@@ -180,7 +180,8 @@ pub fn plot_qq_curve(
     // the 45° line
     let reference_trace = Scatter::new(x_percentiles.clone(), x_percentiles.clone())
         .mode(Mode::Lines)
-        .marker(Marker::new().color(Rgb::new(0, 0, 200)));
+        .name("")
+        .marker(Marker::new().color(Rgb::new(0, 200, 0)));
     plot.add_trace(reference_trace);
 
     let qq_trace = Scatter::new(x_percentiles, y_percentiles)
@@ -198,6 +199,13 @@ pub fn plot_qq_curve(
             x_percentiles.push(*x);
             y_percentiles.push(*y);
         }
+
+        // the 45° line
+        let reference_trace = Scatter::new(x_percentiles.clone(), x_percentiles.clone())
+            .mode(Mode::Lines)
+            .name("")
+            .marker(Marker::new().color(Rgb::new(0, 200, 0)));
+        plot.add_trace(reference_trace);
 
         let baseline_qq_trace = Scatter::new(x_percentiles, y_percentiles)
             .mode(Mode::Markers)
