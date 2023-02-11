@@ -1,5 +1,7 @@
 use crate::config::DurationScale;
+use rand::distributions::Uniform;
 use rand::Rng;
+use rand::SeedableRng;
 use statrs::distribution::ContinuousCDF;
 use statrs::distribution::Normal;
 
@@ -134,41 +136,43 @@ pub struct BootstrapSampler<'a> {
     samples: &'a [f64],
 }
 
-use rand::distributions::Uniform;
-
 impl<'a> BootstrapSampler<'a> {
     pub fn new(samples: &'a [f64]) -> Self {
         Self { samples }
     }
 
-    fn seed_rng<F>(&self) -> F
-    where
-        F: rand::SeedableRng + rand::RngCore,
-    {
-        // let random_seed = rand::thread_rng().sample(rand_distr::Uniform::new(
-        //     0u64,
-        //     (self.samples.len() - 1) as u64,
-        // ));
-        F::seed_from_u64(0u64)
-    }
-
-    fn simulate_samples<F: rand::RngCore>(&self, rng: &mut F, n: usize) -> Vec<f64> {
+    fn simulate_sample_distr<F: rand::Rng>(&self, rng: &mut F, n_distr: usize) -> Vec<f64> {
         let distr = Uniform::new(0, self.samples.len());
         let sampler = rng.sample_iter(distr);
-        sampler.take(n).map(|idx| self.samples[idx]).collect()
+        sampler.take(n_distr).map(|idx| self.samples[idx]).collect()
     }
 
-    pub fn sample_means(&self, n: usize, n_samples: usize) -> Vec<f64> {
-        let mut rng = rand::thread_rng();
-        // let mut rng: rand::rngs::ThreadRng = self.rng();
+    fn bootstrap_samples<F: rand::Rng>(
+        &self,
+        rng: &mut F,
+        n_distr: usize,
+        n_samples: usize,
+    ) -> Vec<Vec<f64>> {
         let mut samples = Vec::with_capacity(n_samples);
 
         for _ in 0..n_samples {
-            let resampled = self.simulate_samples(&mut rng, n);
-            let mean = sum(&resampled) / resampled.len() as f64;
-            samples.push(mean);
+            let resampled = self.simulate_sample_distr(rng, n_distr);
+            samples.push(resampled);
         }
         samples
+    }
+
+    pub fn sample_means(&self, n: usize, n_samples: usize) -> Vec<f64> {
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(42);
+
+        let bs_samples = self.bootstrap_samples(&mut rng, n, n_samples);
+
+        let means = bs_samples
+            .iter()
+            .map(|resampled| sum(&resampled) / resampled.len() as f64)
+            .collect();
+
+        means
     }
 }
 
@@ -292,5 +296,32 @@ mod tests {
                 p_value: 0.009109785650170843
             }
         );
+    }
+
+    #[test]
+    fn bootstrap_sample_means() {
+        let samples = [10.0, 11.0, 12.0, 10.5, 17.0, 33.0, 42.0, 2.0, 15.0, 14.0];
+        let samples_mean = super::sum(&samples) / 10.0;
+        assert_eq!(samples_mean, 16.65);
+
+        let bs_sampler = BootstrapSampler::new(&samples);
+
+        // 1000 bootstrap samples
+        let n_bs_samples = 1_000;
+        let sample_means = bs_sampler.sample_means(5, n_bs_samples);
+
+        assert_eq!(sample_means.len(), n_bs_samples);
+
+        let bs_mean = super::sum(&sample_means) / n_bs_samples as f64;
+        assert_eq!(bs_mean, 16.765399999999996);
+
+        // increase bootstrap samples, mean should converge
+        let n_bs_samples = 100_000;
+        let sample_means = bs_sampler.sample_means(5, n_bs_samples);
+
+        assert_eq!(sample_means.len(), n_bs_samples);
+
+        let bs_mean = super::sum(&sample_means) / n_bs_samples as f64;
+        assert_eq!(bs_mean, 16.650610000000217);
     }
 }
