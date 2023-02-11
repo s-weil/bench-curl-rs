@@ -40,7 +40,6 @@ Find sample reports for
 * cli improvement and clarification
 * client builder (pattern)
 * stats-extension:
-    * reuse (baseline) results for comparison  
     * confidence interval
     * analyze outliers
     * bivariate metrics for comparison of runs

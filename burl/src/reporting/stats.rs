@@ -132,6 +132,19 @@ pub fn normal_qq(percentiles_by_level: &[(f64, f64)], np: &NormalParams) -> Vec<
     qq
 }
 
+pub fn confidence_interval(distribution: &Vec<f64>, alpha: f64) -> Option<(f64, f64)> {
+    if distribution.is_empty() {
+        return None;
+    }
+
+    let mut sorted = distribution.clone();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let alpha_2 = alpha / 2.0;
+    let lower_bound = percentile(&sorted, alpha_2, distribution.len() as f64);
+    let upper_bound = percentile(&sorted, 1.0 - alpha_2, distribution.len() as f64);
+    Some((lower_bound, upper_bound))
+}
+
 pub struct BootstrapSampler<'a> {
     samples: &'a [f64],
 }
@@ -212,6 +225,18 @@ mod tests {
 
         let quartile_trd = super::percentile(&samples, 0.75, 10.0);
         assert_eq!(quartile_trd, 92.0);
+    }
+
+    #[test]
+    fn confidence_interval() {
+        let mut distr = Vec::with_capacity(100);
+
+        for idx in 0..=100 {
+            distr.push(idx as f64);
+        }
+
+        let ci = super::confidence_interval(&distr, 0.1);
+        assert_eq!(ci, Some((5.0, 95.0)));
     }
 
     #[test]

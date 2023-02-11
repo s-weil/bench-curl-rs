@@ -1,4 +1,8 @@
-use crate::reporting::stats::{performance_outcome, NormalParams, PerformanceOutcome};
+use super::confidence_interval;
+use super::plots::plot_bs_histogram;
+use crate::reporting::stats::{
+    performance_outcome, BootstrapSampler, NormalParams, PerformanceOutcome,
+};
 use crate::{
     reporting::plots::{plot_box_plot, plot_histogram, plot_qq_curve, plot_time_series},
     reporting::StatsSummary,
@@ -18,6 +22,8 @@ const COMPONENTS_DIR: &str = "components";
 const DATA_DIR: &str = "data";
 const FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 const HIST_PATH: &str = "hist";
+
+const ALPHA: f64 = 0.05;
 
 #[derive(Serialize)]
 struct ReportMeta {
@@ -152,7 +158,7 @@ fn write_baseline_summary_html(
     if stats.scale == baseline_stats.scale {
         let np = NormalParams::from(stats);
         let np_baseline = NormalParams::from(baseline_stats);
-        let performance_outcome = performance_outcome(&np_baseline, &np, 0.01);
+        let performance_outcome = performance_outcome(&np_baseline, &np, ALPHA);
         let performance_outcome_disp = match performance_outcome {
             Some(PerformanceOutcome::Improved { p_value }) => {
                 format!("<font color='green'>improved (p-value {})</font>", p_value)
@@ -323,6 +329,11 @@ impl<'a> ReportSummary<'a> {
             }
             plot_histogram(stats, &components_dir);
             plot_box_plot(stats, &components_dir);
+
+            // TODO: configurable
+            if let (bootstrap_means, Some((lb, ub))) = stats.bootstrap_summary(100, 1000, ALPHA) {
+                plot_bs_histogram(&bootstrap_means, (lb, ub), &components_dir);
+            }
         }
 
         let time_series = self

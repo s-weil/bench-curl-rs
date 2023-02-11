@@ -1,5 +1,6 @@
 use super::{
-    normal_qq, percentile, requests_per_sec, standard_deviation, stats::NormalParams, sum,
+    confidence_interval, normal_qq, percentile, requests_per_sec, standard_deviation,
+    stats::NormalParams, sum, BootstrapSampler,
 };
 use crate::{
     config::DurationScale,
@@ -331,5 +332,17 @@ impl StatsSummary {
             qq_percentiles,
             display_percentiles,
         })
+    }
+
+    pub fn bootstrap_summary(
+        &self,
+        n_draws: usize,
+        n_samples: usize,
+        alpha: f64,
+    ) -> (Vec<f64>, Option<(f64, f64)>) {
+        let bootstrap_means =
+            BootstrapSampler::new(&self.durations).sample_means(n_draws, n_samples);
+        let confidence_interval = confidence_interval(&bootstrap_means, alpha);
+        (bootstrap_means, confidence_interval)
     }
 }
