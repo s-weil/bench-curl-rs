@@ -1,4 +1,7 @@
-use super::{normal_qq, percentile, standard_deviation, stats::NormalParams, sum};
+use super::{
+    confidence_interval, normal_qq, percentile, requests_per_sec, standard_deviation,
+    stats::NormalParams, sum, BootstrapSampler,
+};
 use crate::{
     config::DurationScale,
     sampling::{RequestResult, SampleCollector, StatusCode},
@@ -22,6 +25,7 @@ pub struct ThreadStats {
     pub n_errors: usize,
 
     pub total_duration: Option<f64>,
+    // pub mean_rps: Option<f64>,
     pub mean: Option<f64>,
     pub max: Option<f64>,
     pub min: Option<f64>,
@@ -100,6 +104,8 @@ pub struct StatsSummary {
     pub scale: DurationScale,
     pub total_duration: f64,
     pub total_bytes: u64,
+    pub mean_rps: Option<f64>,
+
     pub mean: f64,
     pub median: f64,
     pub quartile_fst: f64,
@@ -131,16 +137,20 @@ impl Display for StatsSummary {
             &self.scale,
             &self.stats_by_thread.len()
         )?;
-        writeln!(f, "Total bytes    | {}", self.total_bytes)?;
-        writeln!(f, "Number ok      | {}", self.n_ok)?;
-        writeln!(f, "Number failed  | {}", self.n_errors)?;
+        writeln!(f, "Total bytes      | {}", self.total_bytes)?;
+        writeln!(f, "Number ok        | {}", self.n_ok)?;
+        writeln!(f, "Number failed    | {}", self.n_errors)?;
+        if let Some(rps) = self.mean_rps {
+            writeln!(f, "Mean requests/s | {}", rps)?;
+        }
+
         writeln!(f, "_______DURATIONS_______________________________")?;
         writeln!(f, "Total          | {}", self.total_duration)?;
         writeln!(f, "Mean           | {}", self.mean)?;
         // writeln!(f, "Requests per sec | {}", self.mean)?;
 
         if let Some(std) = self.std {
-            writeln!(f, "StdDev        | {}", std)?;
+            writeln!(f, "StdDev         | {}", std)?;
         }
         writeln!(f, "Min            | {}", self.min)?;
         writeln!(f, "Quartile 1st   | {}", self.quartile_fst)?;
@@ -275,6 +285,8 @@ impl StatsSummary {
         let mean = sum / (n as f64);
         let std = standard_deviation(&durations, mean);
 
+        let mean_rps = requests_per_sec(mean, &scale);
+
         // sort the durations for quantiles
         durations.sort_by(|a, b| a.partial_cmp(b).unwrap());
         let quartile_fst = percentile(&durations, 0.25, n as f64);
@@ -305,6 +317,7 @@ impl StatsSummary {
             durations,
             total_duration: sum,
             total_bytes,
+            mean_rps,
             mean,
             median,
             min,
@@ -319,5 +332,17 @@ impl StatsSummary {
             qq_percentiles,
             display_percentiles,
         })
+    }
+
+    pub fn bootstrap_summary(
+        &self,
+        n_draws: usize,
+        n_samples: usize,
+        alpha: f64,
+    ) -> (Vec<f64>, Option<(f64, f64)>) {
+        let bootstrap_means =
+            BootstrapSampler::new(&self.durations).sample_means(n_draws, n_samples);
+        let confidence_interval = confidence_interval(&bootstrap_means, alpha);
+        (bootstrap_means, confidence_interval)
     }
 }

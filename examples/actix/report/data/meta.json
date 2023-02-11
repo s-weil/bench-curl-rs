@@ -1,6 +1,6 @@
 {
-  "start_time": "2023-01-03 10:12:08",
-  "end_time": "2023-01-03 10:12:09",
+  "start_time": "2023-02-10 17:04:15",
+  "end_time": "2023-02-10 17:04:15",
   "config": {
     "url": "http://localhost:8080/items/",
     "method": "Post",
@@ -19,6 +19,7 @@
     "n_runs": 300,
     "n_warmup_runs": 500,
     "concurrency_level": 4,
-    "report_folder": "examples/actix/report"
+    "report_directory": "examples/actix/report",
+    "baseline_path": "examples/fastapi/report/data"
   }
 }

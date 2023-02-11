@@ -42,3 +42,8 @@ headers = [
 # [[headers]]
 # content_type = "application/json; charset=UTF-8"
 # content-encoding = "deflate, gzip"
+
+[stats_config]
+# n_bootstrap_draw_size = 100
+alpha = 0.05
+# n_bootstrap_samples  = 1000

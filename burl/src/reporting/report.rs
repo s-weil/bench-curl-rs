@@ -1,6 +1,8 @@
 use crate::reporting::stats::{performance_outcome, NormalParams, PerformanceOutcome};
 use crate::{
-    reporting::plots::{plot_box_plot, plot_histogram, plot_qq_curve, plot_time_series},
+    reporting::plots::{
+        plot_box_plot, plot_bs_histogram, plot_histogram, plot_qq_curve, plot_time_series,
+    },
     reporting::StatsSummary,
     sampling::{SampleCollector, SampleResult},
     BenchConfig, BurlError, BurlResult, ThreadIdx,
@@ -124,6 +126,7 @@ fn write_summary_html(stats: &StatsSummary, file: PathBuf) -> BurlResult<()> {
     replace_key_value(("$N_THREADS$", stats.stats_by_thread.len() as f64));
     replace_key_value(("$TOTAL_DURATION$", stats.total_duration));
     replace_key_value(("$MEAN$", stats.mean));
+    replace_key_value(("$RPS$", stats.mean_rps.unwrap_or(f64::NAN)));
     replace_key_value(("$STDEV$", stats.std.unwrap_or(f64::NAN)));
     replace_key_value(("$MIN$", stats.min));
     replace_key_value(("$MAX$", stats.max));
@@ -138,6 +141,7 @@ fn write_summary_html(stats: &StatsSummary, file: PathBuf) -> BurlResult<()> {
 fn write_baseline_summary_html(
     stats: &StatsSummary,
     baseline_stats: &StatsSummary,
+    alpha: f64,
     file: PathBuf,
 ) -> BurlResult<()> {
     let mut template = include_str!("./templates/baseline_summary_template.html").to_string();
@@ -151,7 +155,7 @@ fn write_baseline_summary_html(
     if stats.scale == baseline_stats.scale {
         let np = NormalParams::from(stats);
         let np_baseline = NormalParams::from(baseline_stats);
-        let performance_outcome = performance_outcome(&np_baseline, &np, 0.01);
+        let performance_outcome = performance_outcome(&np_baseline, &np, alpha);
         let performance_outcome_disp = match performance_outcome {
             Some(PerformanceOutcome::Improved { p_value }) => {
                 format!("<font color='green'>improved (p-value {})</font>", p_value)
@@ -191,6 +195,11 @@ fn write_baseline_summary_html(
     replace_key_value(("$TOTAL_DURATION_BASELINE$", baseline_stats.total_duration));
     replace_key_value(("$MEAN$", stats.mean));
     replace_key_value(("$MEAN_BASELINE$", baseline_stats.mean));
+    replace_key_value(("$RPS$", stats.mean_rps.unwrap_or(f64::NAN)));
+    replace_key_value((
+        "$RPS_BASELINE$",
+        baseline_stats.mean_rps.unwrap_or(f64::NAN),
+    ));
     replace_key_value(("$STDEV$", stats.std.unwrap_or(f64::NAN)));
     replace_key_value(("$STDEV_BASELINE$", baseline_stats.std.unwrap_or(f64::NAN)));
     replace_key_value(("$MIN$", stats.min));
@@ -291,7 +300,7 @@ impl<'a> ReportSummary<'a> {
             return None;
         }
 
-        let baseline_results: Option<StatsSummary> = read_data(&results_file).ok();
+        let baseline_results: Option<StatsSummary> = read_data(results_file).ok();
         baseline_results
     }
 
@@ -304,7 +313,7 @@ impl<'a> ReportSummary<'a> {
             if let Some(dir) = &components_dir {
                 let file = dir.join("summary.html");
                 if let Some(bl_stats) = baseline_stats {
-                    write_baseline_summary_html(stats, &bl_stats, file)?;
+                    write_baseline_summary_html(stats, &bl_stats, self.config.alpha(), file)?;
 
                     let baseline_qq_curve = bl_stats.normal_qq_curve();
                     let qq_curve = stats.normal_qq_curve();
@@ -317,6 +326,14 @@ impl<'a> ReportSummary<'a> {
             }
             plot_histogram(stats, &components_dir);
             plot_box_plot(stats, &components_dir);
+
+            if let (bootstrap_means, Some((lb, ub))) = stats.bootstrap_summary(
+                self.config.n_bootstrap_draw_size(),
+                self.config.n_bootstrap_samples(),
+                self.config.alpha(),
+            ) {
+                plot_bs_histogram(&bootstrap_means, (lb, ub), &components_dir);
+            }
         }
 
         let time_series = self

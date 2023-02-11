@@ -1,5 +1,19 @@
+use crate::config::DurationScale;
+use rand::distributions::Uniform;
+use rand::Rng;
+use rand::SeedableRng;
 use statrs::distribution::ContinuousCDF;
 use statrs::distribution::Normal;
+
+const ZERO_THRESHOLD: f64 = 1e-16;
+
+pub fn requests_per_sec(req_per_duration: f64, scale: &DurationScale) -> Option<f64> {
+    if req_per_duration < ZERO_THRESHOLD {
+        return None;
+    }
+    let rps = scale.factor(&DurationScale::Secs) / req_per_duration;
+    Some(rps)
+}
 
 pub fn sum(durations: &[f64]) -> f64 {
     durations.iter().fold(0.0, |acc, dur| acc + dur)
@@ -118,9 +132,85 @@ pub fn normal_qq(percentiles_by_level: &[(f64, f64)], np: &NormalParams) -> Vec<
     qq
 }
 
+pub fn confidence_interval(distribution: &Vec<f64>, alpha: f64) -> Option<(f64, f64)> {
+    if distribution.is_empty() {
+        return None;
+    }
+
+    let mut sorted = distribution.clone();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let alpha_2 = alpha / 2.0;
+    let lower_bound = percentile(&sorted, alpha_2, distribution.len() as f64);
+    let upper_bound = percentile(&sorted, 1.0 - alpha_2, distribution.len() as f64);
+    Some((lower_bound, upper_bound))
+}
+
+pub struct BootstrapSampler<'a> {
+    samples: &'a [f64],
+}
+
+impl<'a> BootstrapSampler<'a> {
+    pub fn new(samples: &'a [f64]) -> Self {
+        Self { samples }
+    }
+
+    fn simulate_sample_distr<F: rand::Rng>(&self, rng: &mut F, n_distr: usize) -> Vec<f64> {
+        let distr = Uniform::new(0, self.samples.len());
+        let sampler = rng.sample_iter(distr);
+        sampler.take(n_distr).map(|idx| self.samples[idx]).collect()
+    }
+
+    fn bootstrap_samples<F: rand::Rng>(
+        &self,
+        rng: &mut F,
+        n_distr: usize,
+        n_samples: usize,
+    ) -> Vec<Vec<f64>> {
+        let mut samples = Vec::with_capacity(n_samples);
+
+        for _ in 0..n_samples {
+            let resampled = self.simulate_sample_distr(rng, n_distr);
+            samples.push(resampled);
+        }
+        samples
+    }
+
+    pub fn sample_means(&self, n: usize, n_samples: usize) -> Vec<f64> {
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(42);
+
+        let bs_samples = self.bootstrap_samples(&mut rng, n, n_samples);
+
+        let means = bs_samples
+            .iter()
+            .map(|resampled| sum(resampled) / resampled.len() as f64)
+            .collect();
+
+        means
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn requests_per_sec() {
+        let mean = 0.0;
+        let rps = super::requests_per_sec(mean, &DurationScale::Milli);
+        assert!(rps.is_none());
+
+        let mean = 100.0;
+        let rps = super::requests_per_sec(mean, &DurationScale::Milli);
+        assert_eq!(rps, Some(10.0));
+
+        let mean = 100.0;
+        let rps = super::requests_per_sec(mean, &DurationScale::Micro);
+        assert_eq!(rps, Some(10_000.0));
+
+        let mean = 100.0;
+        let rps = super::requests_per_sec(mean, &DurationScale::Nano);
+        assert_eq!(rps, Some(10_000_000.0));
+    }
 
     #[test]
     fn percentile() {
@@ -135,6 +225,18 @@ mod tests {
 
         let quartile_trd = super::percentile(&samples, 0.75, 10.0);
         assert_eq!(quartile_trd, 92.0);
+    }
+
+    #[test]
+    fn confidence_interval() {
+        let mut distr = Vec::with_capacity(100);
+
+        for idx in 0..=100 {
+            distr.push(idx as f64);
+        }
+
+        let ci = super::confidence_interval(&distr, 0.1);
+        assert_eq!(ci, Some((5.0, 95.0)));
     }
 
     #[test]
@@ -219,5 +321,32 @@ mod tests {
                 p_value: 0.009109785650170843
             }
         );
+    }
+
+    #[test]
+    fn bootstrap_sample_means() {
+        let samples = [10.0, 11.0, 12.0, 10.5, 17.0, 33.0, 42.0, 2.0, 15.0, 14.0];
+        let samples_mean = super::sum(&samples) / 10.0;
+        assert_eq!(samples_mean, 16.65);
+
+        let bs_sampler = BootstrapSampler::new(&samples);
+
+        // 1000 bootstrap samples
+        let n_bs_samples = 1_000;
+        let sample_means = bs_sampler.sample_means(5, n_bs_samples);
+
+        assert_eq!(sample_means.len(), n_bs_samples);
+
+        let bs_mean = super::sum(&sample_means) / n_bs_samples as f64;
+        assert_eq!(bs_mean, 16.765399999999996);
+
+        // increase bootstrap samples, mean should converge
+        let n_bs_samples = 100_000;
+        let sample_means = bs_sampler.sample_means(5, n_bs_samples);
+
+        assert_eq!(sample_means.len(), n_bs_samples);
+
+        let bs_mean = super::sum(&sample_means) / n_bs_samples as f64;
+        assert_eq!(bs_mean, 16.650610000000217);
     }
 }
