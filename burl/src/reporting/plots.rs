@@ -117,7 +117,7 @@ pub fn plot_histogram(stats: &StatsSummary, output_path: &Option<PathBuf>) {
 
 // TOOD: extract histogram logic and re-use it above
 pub fn plot_bs_histogram(
-    bs_means: &Vec<f64>,
+    bs_means: &[f64],
     (lower_bound, upper_bound): (f64, f64),
     output_path: &Option<PathBuf>,
 ) {
@@ -134,7 +134,7 @@ pub fn plot_bs_histogram(
         .y_axis(Axis::new().title(Title::new("frequency")).zero_line(true));
     plot.set_layout(layout);
 
-    let total_histogram = Histogram::new(bs_means.clone())
+    let total_histogram = Histogram::new(bs_means.to_owned())
         .hist_norm(HistNorm::Probability)
         .name("mean duration")
         .marker(Marker::new().color(NamedColor::Blue));
@@ -148,7 +148,7 @@ pub fn plot_bs_histogram(
         .name("lower confidence bound")
         .mode(Mode::Lines);
     plot.add_trace(lb_trace);
-    let ub_trace = Scatter::new(ub, ys_vertical.clone())
+    let ub_trace = Scatter::new(ub, ys_vertical)
         .name("upper confidence bound")
         .mode(Mode::Lines);
     plot.add_trace(ub_trace);

@@ -182,7 +182,7 @@ impl<'a> BootstrapSampler<'a> {
 
         let means = bs_samples
             .iter()
-            .map(|resampled| sum(&resampled) / resampled.len() as f64)
+            .map(|resampled| sum(resampled) / resampled.len() as f64)
             .collect();
 
         means

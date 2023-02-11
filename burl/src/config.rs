@@ -48,6 +48,16 @@ pub enum ConcurrenyLevel {
     Concurrent(usize),
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct StatsConfig {
+    /// the confidence / significance level
+    pub alpha: Option<f64>,
+    pub n_bootstrap_samples: Option<usize>,
+    pub n_bootstrap_draw_size: Option<usize>,
+}
+
+const ALPHA: f64 = 0.05;
+
 // TODO: structure into sub types
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct BenchConfig {
@@ -90,6 +100,9 @@ pub struct BenchConfig {
     // * logging param with level?
     // #[serde(alias = "jsonPayloads")]
     // json_payloads: Option<Vec<String>>,
+    #[serde(alias = "statsConfig")]
+    #[serde(alias = "statisticsConfig")]
+    pub stats_config: Option<StatsConfig>,
 }
 
 const DEFAULT_NRUNS: usize = 300;
@@ -131,5 +144,26 @@ impl BenchConfig {
         }
 
         None
+    }
+
+    pub fn alpha(&self) -> f64 {
+        self.stats_config
+            .as_ref()
+            .and_then(|scfg| scfg.alpha)
+            .unwrap_or(ALPHA)
+    }
+
+    pub fn n_bootstrap_draw_size(&self) -> usize {
+        self.stats_config
+            .as_ref()
+            .and_then(|scfg| scfg.n_bootstrap_draw_size)
+            .unwrap_or(100)
+    }
+
+    pub fn n_bootstrap_samples(&self) -> usize {
+        self.stats_config
+            .as_ref()
+            .and_then(|scfg| scfg.n_bootstrap_samples)
+            .unwrap_or(1_000)
     }
 }
