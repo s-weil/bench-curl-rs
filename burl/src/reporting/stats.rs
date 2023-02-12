@@ -4,6 +4,7 @@ use rand::Rng;
 use rand::SeedableRng;
 use statrs::distribution::ContinuousCDF;
 use statrs::distribution::Normal;
+use std::collections::HashSet;
 
 const ZERO_THRESHOLD: f64 = 1e-16;
 
@@ -59,10 +60,10 @@ pub struct NormalParams {
 }
 
 #[derive(Debug, PartialEq)]
-pub(crate) enum PerformanceOutcome {
+pub enum PerformanceOutcome {
     Regressed { p_value: f64 },
     Improved { p_value: f64 },
-    NoChange,
+    Inconclusive,
 }
 
 /// We assume:
@@ -107,7 +108,7 @@ pub(crate) fn performance_outcome(
     let p_value = unsigned_p_value(np_base, np)?;
 
     if p_value > alpha {
-        return Some(PerformanceOutcome::NoChange);
+        return Some(PerformanceOutcome::Inconclusive);
     }
 
     // case of significant performance change
@@ -186,6 +187,125 @@ impl<'a> BootstrapSampler<'a> {
             .collect();
 
         means
+    }
+}
+
+/// The null hypothesis of the [Permutation test](https://en.wikipedia.org/wiki/Permutation_test)
+/// is that all samples come from the same distribution;
+/// or in other words, there is no 'significant distinction' between both.
+pub struct PermutationTester<'a> {
+    current_samples: &'a [f64],
+    baseline_samples: &'a [f64],
+    current_len: usize,
+    baseline_len: usize,
+    total_len: usize,
+}
+
+impl<'a> PermutationTester<'a> {
+    pub fn new(current_samples: &'a [f64], baseline_samples: &'a [f64]) -> Self {
+        Self {
+            current_len: current_samples.len(),
+            baseline_len: baseline_samples.len(),
+            total_len: current_samples.len() + baseline_samples.len(),
+            current_samples,
+            baseline_samples,
+        }
+    }
+
+    fn idx_value(&self, idx: usize) -> Option<f64> {
+        if 0 <= idx && idx < self.baseline_len {
+            Some(self.baseline_samples[idx])
+        } else if self.baseline_len <= idx && idx < self.total_len {
+            Some(self.current_samples[idx - self.baseline_len])
+        } else {
+            None
+        }
+    }
+
+    fn simulate_paired_distribution<F: rand::Rng>(&self, rng: &mut F) -> (Vec<f64>, Vec<f64>) {
+        let distr = Uniform::new(0, self.total_len);
+        let mut sampler = rng.sample_iter(distr);
+
+        let mut baseline_indices = HashSet::new();
+        let mut baseline_distr = Vec::with_capacity(self.baseline_len);
+
+        while baseline_indices.len() < self.baseline_len {
+            if let Some(idx) = sampler.next() {
+                if !baseline_indices.contains(&idx) {
+                    baseline_indices.insert(idx);
+
+                    if let Some(v) = self.idx_value(idx) {
+                        baseline_distr.push(v);
+                    }
+                }
+            } else {
+                // should not happen but avoid infty loops
+                break;
+            }
+        }
+
+        // the baseline_indices now have the size of baseline_len; create as the difference set
+        let mut current_indices = Vec::with_capacity(self.current_len);
+        for idx in 0..self.total_len {
+            if !baseline_indices.contains(&idx) {
+                if let Some(v) = self.idx_value(idx) {
+                    current_indices.push(v);
+                }
+            }
+        }
+
+        (baseline_distr, current_indices)
+    }
+
+    fn sample_mean_differences<F: rand::Rng>(&self, rng: &mut F, n_samples: usize) -> Vec<f64> {
+        let mut samples = Vec::with_capacity(n_samples);
+
+        for _ in 0..n_samples {
+            let (baseline, current) = self.simulate_paired_distribution(rng);
+            let baseline_mean = sum(&baseline) / self.baseline_len as f64;
+            let current_mean = sum(&current) / self.current_len as f64;
+            let diff = baseline_mean - current_mean;
+            samples.push(diff);
+        }
+        samples
+    }
+
+    pub fn test(&self, n_samples: usize, alpha: f64) -> Option<PerformanceOutcome> {
+        if self.baseline_len == 0 || self.current_len == 0 {
+            return None;
+        }
+
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(42);
+
+        let mean_diff_samples = self.sample_mean_differences(&mut rng, n_samples);
+
+        let baseline_mean = sum(self.baseline_samples) / self.baseline_len as f64;
+        let current_mean = sum(self.current_samples) / self.current_len as f64;
+        let test_diff = baseline_mean - current_mean;
+
+        let n_extreme_diffs = mean_diff_samples.iter().fold(0, |acc, diff| {
+            // baseline_mean >= current_mean
+            if test_diff >= 0.0 && *diff >= test_diff {
+                acc + 1
+            } else if test_diff < 0.0 && *diff <= test_diff {
+                acc + 1
+            } else {
+                acc
+            }
+        });
+
+        let p_value = n_extreme_diffs as f64 / n_samples as f64;
+
+        if p_value > alpha {
+            return Some(PerformanceOutcome::Inconclusive);
+        }
+
+        // case of significant performance change
+        if baseline_mean < current_mean {
+            Some(PerformanceOutcome::Regressed { p_value })
+        } else {
+            Some(PerformanceOutcome::Improved { p_value })
+        }
     }
 }
 
@@ -302,7 +422,7 @@ mod tests {
 
         let perf_outcome = super::performance_outcome(&np_base, &np_new, 0.005);
         assert!(perf_outcome.is_some());
-        assert_eq!(perf_outcome.unwrap(), PerformanceOutcome::NoChange);
+        assert_eq!(perf_outcome.unwrap(), PerformanceOutcome::Inconclusive);
 
         let perf_outcome = super::performance_outcome(&np_base, &np_new, 0.01);
         assert!(perf_outcome.is_some());
@@ -348,5 +468,31 @@ mod tests {
 
         let bs_mean = super::sum(&sample_means) / n_bs_samples as f64;
         assert_eq!(bs_mean, 16.650610000000217);
+    }
+
+    #[test]
+    fn permutation_test() {
+        let baseline_samples = vec![10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0];
+
+        let current_samples: Vec<f64> = vec![10.5, 10.5, 10.5, 9.5, 9.5, 9.5];
+        let p_test = PermutationTester::new(&current_samples, &baseline_samples);
+        assert_eq!(
+            p_test.test(1000, 0.1),
+            Some(PerformanceOutcome::Inconclusive)
+        );
+
+        let current_samples: Vec<f64> = vec![11.5, 11.5, 11.5, 11.0, 10.0, 9.5];
+        let p_test = PermutationTester::new(&current_samples, &baseline_samples);
+        assert_eq!(
+            p_test.test(1000, 0.1),
+            Some(PerformanceOutcome::Regressed { p_value: 0.008 })
+        );
+
+        let current_samples: Vec<f64> = vec![10.5, 10.0, 9.5, 9.0, 8.5, 8.5, 8.5];
+        let p_test = PermutationTester::new(&current_samples, &baseline_samples);
+        assert_eq!(
+            p_test.test(1000, 0.1),
+            Some(PerformanceOutcome::Improved { p_value: 0.013 })
+        );
     }
 }

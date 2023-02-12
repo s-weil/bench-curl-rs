@@ -163,7 +163,7 @@ fn write_baseline_summary_html(
             Some(PerformanceOutcome::Regressed { p_value }) => {
                 format!("<font color='red'>regressed (p-value {})</font>", p_value)
             }
-            Some(PerformanceOutcome::NoChange) => "no significant change".to_string(),
+            Some(PerformanceOutcome::Inconclusive) => "no significant change".to_string(),
             None => "could not be determined".to_string(),
         };
         template = template.replace("$PERFORMANCE_OUTCOME$", performance_outcome_disp.as_str());
