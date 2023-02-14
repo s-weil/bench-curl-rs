@@ -4,8 +4,19 @@ use rand::Rng;
 use rand::SeedableRng;
 use statrs::distribution::ContinuousCDF;
 use statrs::distribution::Normal;
+use std::collections::HashSet;
+
+pub type Probablity = f64; // values in [0,1]
+pub type Percentage = f64; // values in [0,100]
+pub type Percentile = f64;
 
 const ZERO_THRESHOLD: f64 = 1e-16;
+
+pub struct NormalParams {
+    pub mean: f64,
+    pub std: f64,
+    pub n_samples: usize,
+}
 
 pub fn requests_per_sec(req_per_duration: f64, scale: &DurationScale) -> Option<f64> {
     if req_per_duration < ZERO_THRESHOLD {
@@ -52,73 +63,10 @@ pub fn standard_deviation(samples: &[f64], mean: f64) -> Option<f64> {
     Some(std)
 }
 
-pub struct NormalParams {
-    pub mean: f64,
-    pub std: f64,
-    pub n_samples: usize,
-}
-
-#[derive(Debug, PartialEq)]
-pub(crate) enum PerformanceOutcome {
-    Regressed { p_value: f64 },
-    Improved { p_value: f64 },
-    NoChange,
-}
-
-/// We assume:
-/// - the samples (of durations) to be independent, identical Gaussian random variables
-/// - the number of samples (for each collection) to be sufficiently large, so that the estimated std deviations are good approximations
-/// - the two sample collections (of the baseline and the the current run) to be independent with known standard deviations (see prev assumption)
-fn test_statistics(np_base: &NormalParams, np: &NormalParams) -> Option<f64> {
-    // the 'combined' standard deviation
-    // let s2: f64 = ((np.n_samples as f64 - 1.0) * np.std.powi(2)
-    //     + (np_base.n_samples as f64 - 1.0) * np_base.std.powi(2))
-    //     * (((np.n_samples + np_base.n_samples)
-    //         / (np.n_samples * np_base.n_samples * (np.n_samples + np_base.n_samples - 2)))
-    //         as f64);
-
-    // the 'combined' standard deviation
-    let s2 =
-        np_base.std.powi(2) / (np_base.n_samples as f64) + np.std.powi(2) / (np.n_samples as f64);
-
-    if s2.abs() < 1.0e-12 {
-        return None;
-    }
-
-    // value of the test-variable
-    let t = (np_base.mean - np.mean) / s2.sqrt();
-    Some(t)
-}
-
-fn unsigned_p_value(np_base: &NormalParams, np: &NormalParams) -> Option<f64> {
-    // value of the test-variable
-    let t = test_statistics(np_base, np)?;
-    let n = Normal::new(0.0, 1.0).unwrap();
-    let cdf_t = n.cdf(t.abs());
-    let p_value = 1.0 - cdf_t;
-    Some(p_value)
-}
-
-pub(crate) fn performance_outcome(
-    np_base: &NormalParams,
+pub fn normal_qq(
+    percentiles_by_level: &[(Percentage, Percentile)],
     np: &NormalParams,
-    alpha: f64,
-) -> Option<PerformanceOutcome> {
-    let p_value = unsigned_p_value(np_base, np)?;
-
-    if p_value > alpha {
-        return Some(PerformanceOutcome::NoChange);
-    }
-
-    // case of significant performance change
-    if np_base.mean < np.mean {
-        Some(PerformanceOutcome::Regressed { p_value })
-    } else {
-        Some(PerformanceOutcome::Improved { p_value })
-    }
-}
-
-pub fn normal_qq(percentiles_by_level: &[(f64, f64)], np: &NormalParams) -> Vec<(f64, f64)> {
+) -> Vec<(Percentile, Percentile)> {
     let normal = Normal::new(np.mean, np.std).unwrap();
 
     let qq = percentiles_by_level
@@ -186,6 +134,214 @@ impl<'a> BootstrapSampler<'a> {
             .collect();
 
         means
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum PerformanceOutcome {
+    Regressed { p_value: f64 },
+    Improved { p_value: f64 },
+    Inconclusive,
+}
+
+impl PerformanceOutcome {
+    pub fn to_html(&self) -> String {
+        match self {
+            PerformanceOutcome::Improved { p_value } => {
+                format!("<font color='green'>improved (p-value {})</font>", p_value)
+            }
+            PerformanceOutcome::Regressed { p_value } => {
+                format!("<font color='red'>regressed (p-value {})</font>", p_value)
+            }
+            PerformanceOutcome::Inconclusive => "inconclusive (no significant change)".to_string(),
+        }
+    }
+}
+
+/// We assume:
+/// - the samples (of durations) to be independent, identical Gaussian random variables
+/// - the number of samples (for each collection) to be sufficiently large, so that the estimated std deviations are good approximations
+/// - the two sample collections (of the baseline and the the current run) to be independent with known standard deviations (see prev assumption)
+fn test_statistics(np_base: &NormalParams, np: &NormalParams) -> Option<f64> {
+    // the 'combined' standard deviation
+    // let s2: f64 = ((np.n_samples as f64 - 1.0) * np.std.powi(2)
+    //     + (np_base.n_samples as f64 - 1.0) * np_base.std.powi(2))
+    //     * (((np.n_samples + np_base.n_samples)
+    //         / (np.n_samples * np_base.n_samples * (np.n_samples + np_base.n_samples - 2)))
+    //         as f64);
+
+    // the 'combined' standard deviation
+    let s2 =
+        np_base.std.powi(2) / (np_base.n_samples as f64) + np.std.powi(2) / (np.n_samples as f64);
+
+    if s2.abs() < ZERO_THRESHOLD {
+        return None;
+    }
+
+    // value of the test-variable
+    let t = (np_base.mean - np.mean) / s2.sqrt();
+    Some(t)
+}
+
+fn unsigned_p_value(np_base: &NormalParams, np: &NormalParams) -> Option<f64> {
+    // value of the test-variable
+    let t = test_statistics(np_base, np)?;
+    let n = Normal::new(0.0, 1.0).unwrap();
+    let cdf_t = n.cdf(t.abs());
+    let p_value = 1.0 - cdf_t;
+    Some(p_value)
+}
+
+/// See the overview of [t-tests and hypothesis testing](https://www.bmj.com/about-bmj/resources-readers/publications/statistics-square-one/7-t-tests)
+/// We assume:
+/// - the samples (of durations) to be independent, identical Gaussian random variables
+/// - the number of samples (for each collection) to be sufficiently large, so that the estimated std deviations are 'good' approximations
+/// - the two sample collections (of the baseline and the the current run) to be independent with known standard deviations (see prev assumption)
+pub struct AnalyticTester<'a> {
+    np_baseline: &'a NormalParams,
+    np_current: &'a NormalParams,
+}
+
+impl<'a> AnalyticTester<'a> {
+    pub fn new(np_baseline: &'a NormalParams, np_current: &'a NormalParams) -> Self {
+        Self {
+            np_baseline,
+            np_current,
+        }
+    }
+
+    pub fn test(&self, alpha: Probablity) -> Option<PerformanceOutcome> {
+        let p_value = unsigned_p_value(self.np_baseline, self.np_current)?;
+
+        if p_value > alpha {
+            return Some(PerformanceOutcome::Inconclusive);
+        }
+
+        // case of significant performance change
+        if self.np_baseline.mean < self.np_current.mean {
+            Some(PerformanceOutcome::Regressed { p_value })
+        } else {
+            Some(PerformanceOutcome::Improved { p_value })
+        }
+    }
+}
+
+/// The null hypothesis of the [Permutation test](https://en.wikipedia.org/wiki/Permutation_test)
+/// is that all samples come from the same distribution;
+/// or in other words, there is no 'significant distinction' between both.
+/// It is used as a proof by contradiction where a p-value below alpha will be reject the null hypothesis.
+/// The advantage of this tester is that it does not rely on assumptions of the underlying distributions.
+pub struct PermutationTester<'a> {
+    current_samples: &'a [f64],
+    baseline_samples: &'a [f64],
+    current_len: usize,
+    baseline_len: usize,
+    total_len: usize,
+}
+
+impl<'a> PermutationTester<'a> {
+    pub fn new(current_samples: &'a [f64], baseline_samples: &'a [f64]) -> Self {
+        Self {
+            current_len: current_samples.len(),
+            baseline_len: baseline_samples.len(),
+            total_len: current_samples.len() + baseline_samples.len(),
+            current_samples,
+            baseline_samples,
+        }
+    }
+
+    fn idx_value(&self, idx: usize) -> Option<f64> {
+        if idx < self.baseline_len {
+            Some(self.baseline_samples[idx])
+        } else if self.baseline_len <= idx && idx < self.total_len {
+            Some(self.current_samples[idx - self.baseline_len])
+        } else {
+            None
+        }
+    }
+
+    fn simulate_paired_distribution<F: rand::Rng>(&self, rng: &mut F) -> (Vec<f64>, Vec<f64>) {
+        let distr = Uniform::new(0, self.total_len);
+        let mut sampler = rng.sample_iter(distr);
+
+        let mut baseline_indices = HashSet::new();
+        let mut baseline_distr = Vec::with_capacity(self.baseline_len);
+
+        while baseline_indices.len() < self.baseline_len {
+            if let Some(idx) = sampler.next() {
+                if !baseline_indices.contains(&idx) {
+                    baseline_indices.insert(idx);
+
+                    if let Some(v) = self.idx_value(idx) {
+                        baseline_distr.push(v);
+                    }
+                }
+            } else {
+                // should not happen but avoid infty loops
+                break;
+            }
+        }
+
+        // the baseline_indices now have the size of baseline_len; create as the difference set
+        let mut current_indices = Vec::with_capacity(self.current_len);
+        for idx in 0..self.total_len {
+            if !baseline_indices.contains(&idx) {
+                if let Some(v) = self.idx_value(idx) {
+                    current_indices.push(v);
+                }
+            }
+        }
+
+        (baseline_distr, current_indices)
+    }
+
+    fn sample_mean_differences<F: rand::Rng>(&self, rng: &mut F, n_samples: usize) -> Vec<f64> {
+        let mut samples = Vec::with_capacity(n_samples);
+
+        for _ in 0..n_samples {
+            let (baseline, current) = self.simulate_paired_distribution(rng);
+            let baseline_mean = sum(&baseline) / self.baseline_len as f64;
+            let current_mean = sum(&current) / self.current_len as f64;
+            let diff = baseline_mean - current_mean;
+            samples.push(diff);
+        }
+        samples
+    }
+
+    pub fn test(&self, n_samples: usize, alpha: f64) -> Option<PerformanceOutcome> {
+        if self.baseline_len == 0 || self.current_len == 0 {
+            return None;
+        }
+
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(42);
+
+        let mean_diff_samples = self.sample_mean_differences(&mut rng, n_samples);
+
+        let baseline_mean = sum(self.baseline_samples) / self.baseline_len as f64;
+        let current_mean = sum(self.current_samples) / self.current_len as f64;
+        let test_diff = baseline_mean - current_mean;
+
+        let n_extreme_diffs = mean_diff_samples.iter().fold(0, |acc, diff| {
+            // baseline_mean >= current_mean || aseline_mean <= current_mean
+            if (0.0 <= test_diff && test_diff <= *diff) || (*diff <= test_diff && test_diff < 0.0) {
+                acc + 1
+            } else {
+                acc
+            }
+        });
+
+        let p_value = n_extreme_diffs as f64 / n_samples as f64;
+
+        if p_value > alpha {
+            return Some(PerformanceOutcome::Inconclusive);
+        }
+
+        // case of significant performance change
+        if baseline_mean < current_mean {
+            Some(PerformanceOutcome::Regressed { p_value })
+        } else {
+            Some(PerformanceOutcome::Improved { p_value })
+        }
     }
 }
 
@@ -288,7 +444,7 @@ mod tests {
     }
 
     #[test]
-    fn performance_outcome() {
+    fn analytic_test() {
         let np_base = NormalParams {
             mean: 520.0,
             std: 50.0,
@@ -300,11 +456,11 @@ mod tests {
             n_samples: 50,
         };
 
-        let perf_outcome = super::performance_outcome(&np_base, &np_new, 0.005);
+        let perf_outcome = super::AnalyticTester::new(&np_base, &np_new).test(0.005);
         assert!(perf_outcome.is_some());
-        assert_eq!(perf_outcome.unwrap(), PerformanceOutcome::NoChange);
+        assert_eq!(perf_outcome.unwrap(), PerformanceOutcome::Inconclusive);
 
-        let perf_outcome = super::performance_outcome(&np_base, &np_new, 0.01);
+        let perf_outcome = super::AnalyticTester::new(&np_base, &np_new).test(0.01);
         assert!(perf_outcome.is_some());
         assert_eq!(
             perf_outcome.unwrap(),
@@ -313,7 +469,7 @@ mod tests {
             }
         );
 
-        let perf_outcome = super::performance_outcome(&np_new, &np_base, 0.01);
+        let perf_outcome = super::AnalyticTester::new(&np_new, &np_base).test(0.01);
         assert!(perf_outcome.is_some());
         assert_eq!(
             perf_outcome.unwrap(),
@@ -348,5 +504,31 @@ mod tests {
 
         let bs_mean = super::sum(&sample_means) / n_bs_samples as f64;
         assert_eq!(bs_mean, 16.650610000000217);
+    }
+
+    #[test]
+    fn permutation_test() {
+        let baseline_samples = vec![10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0];
+
+        let current_samples: Vec<f64> = vec![10.5, 10.5, 10.5, 9.5, 9.5, 9.5];
+        let p_test = PermutationTester::new(&current_samples, &baseline_samples);
+        assert_eq!(
+            p_test.test(1000, 0.1),
+            Some(PerformanceOutcome::Inconclusive)
+        );
+
+        let current_samples: Vec<f64> = vec![11.5, 11.5, 11.5, 11.0, 10.0, 9.5];
+        let p_test = PermutationTester::new(&current_samples, &baseline_samples);
+        assert_eq!(
+            p_test.test(1000, 0.1),
+            Some(PerformanceOutcome::Regressed { p_value: 0.008 })
+        );
+
+        let current_samples: Vec<f64> = vec![10.5, 10.0, 9.5, 9.0, 8.5, 8.5, 8.5];
+        let p_test = PermutationTester::new(&current_samples, &baseline_samples);
+        assert_eq!(
+            p_test.test(1000, 0.1),
+            Some(PerformanceOutcome::Improved { p_value: 0.013 })
+        );
     }
 }

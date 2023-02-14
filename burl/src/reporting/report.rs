@@ -1,4 +1,4 @@
-use crate::reporting::stats::{performance_outcome, NormalParams, PerformanceOutcome};
+use crate::reporting::stats::{AnalyticTester, NormalParams, PermutationTester};
 use crate::{
     reporting::plots::{
         plot_box_plot, plot_bs_histogram, plot_histogram, plot_qq_curve, plot_time_series,
@@ -155,18 +155,25 @@ fn write_baseline_summary_html(
     if stats.scale == baseline_stats.scale {
         let np = NormalParams::from(stats);
         let np_baseline = NormalParams::from(baseline_stats);
-        let performance_outcome = performance_outcome(&np_baseline, &np, alpha);
+        let analytic_test = AnalyticTester::new(&np_baseline, &np);
+        let performance_outcome = analytic_test.test(alpha);
         let performance_outcome_disp = match performance_outcome {
-            Some(PerformanceOutcome::Improved { p_value }) => {
-                format!("<font color='green'>improved (p-value {})</font>", p_value)
-            }
-            Some(PerformanceOutcome::Regressed { p_value }) => {
-                format!("<font color='red'>regressed (p-value {})</font>", p_value)
-            }
-            Some(PerformanceOutcome::NoChange) => "no significant change".to_string(),
+            Some(outcome) => outcome.to_html(),
             None => "could not be determined".to_string(),
         };
         template = template.replace("$PERFORMANCE_OUTCOME$", performance_outcome_disp.as_str());
+
+        let permutation_tester =
+            PermutationTester::new(&stats.durations, &baseline_stats.durations);
+        let permutation_outcome = permutation_tester.test(1000, alpha);
+        let permutation_outcome_disp = match permutation_outcome {
+            Some(outcome) => outcome.to_html(),
+            None => "could not be determined".to_string(),
+        };
+        template = template.replace(
+            "$PERMUTATION_PERFORMANCE_OUTCOME$",
+            permutation_outcome_disp.as_str(),
+        );
     } else {
         template = template.replace(
             "$PERFORMANCE_OUTCOME$",

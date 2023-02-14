@@ -93,12 +93,6 @@ impl From<&SampleCollector> for ThreadStats {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StatsSummary {
-    // #[serde(skip_serializing_if = "Map::is_empty")]
-    #[serde(skip_serializing)]
-    #[serde(skip_deserializing)]
-    pub errors: HashMap<StatusCode, i32>,
-    #[serde(skip_deserializing)]
-    #[serde(skip_serializing)] // serialize or not?
     pub durations: Vec<f64>,
 
     pub scale: DurationScale,
@@ -118,12 +112,15 @@ pub struct StatsSummary {
 
     pub stats_by_thread: HashMap<ThreadIdx, ThreadStats>,
     /// Percentiles 1% 5% 10% 20% 30% 40% 50% 60% 70% 80% 90% 95% 99%
-    #[serde(skip_deserializing)]
-    pub display_percentiles: Vec<(f64, f64)>,
-
     pub qq_percentiles: Vec<(f64, f64)>,
     // TODO: provide overview of errors - tbd if actually interestering or a corner case
     // TODO: outliers
+    #[serde(skip_deserializing)]
+    #[serde(skip_serializing)]
+    pub display_percentiles: Vec<(f64, f64)>,
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    pub errors: HashMap<StatusCode, i32>,
 }
 
 const N_PERCENTILES: usize = 20;
