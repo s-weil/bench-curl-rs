@@ -159,15 +159,7 @@ fn write_baseline_summary_html(
         let np_baseline = NormalParams::from(baseline_stats);
         let performance_outcome = performance_outcome(&np_baseline, &np, alpha);
         let performance_outcome_disp = match performance_outcome {
-            Some(PerformanceOutcome::Improved { p_value }) => {
-                format!("<font color='green'>improved (p-value {})</font>", p_value)
-            }
-            Some(PerformanceOutcome::Regressed { p_value }) => {
-                format!("<font color='red'>regressed (p-value {})</font>", p_value)
-            }
-            Some(PerformanceOutcome::Inconclusive) => {
-                "inconclusive (no significant change)".to_string()
-            }
+            Some(outcome) => outcome.to_html(),
             None => "could not be determined".to_string(),
         };
         template = template.replace("$PERFORMANCE_OUTCOME$", performance_outcome_disp.as_str());
@@ -176,15 +168,7 @@ fn write_baseline_summary_html(
             PermutationTester::new(&stats.durations, &baseline_stats.durations);
         let permutation_outcome = permutation_tester.test(1000, alpha);
         let permutation_outcome_disp = match permutation_outcome {
-            Some(PerformanceOutcome::Improved { p_value }) => {
-                format!("<font color='green'>improved (p-value {})</font>", p_value)
-            }
-            Some(PerformanceOutcome::Regressed { p_value }) => {
-                format!("<font color='red'>regressed (p-value {})</font>", p_value)
-            }
-            Some(PerformanceOutcome::Inconclusive) => {
-                "inconclusive (no significant change)".to_string()
-            }
+            Some(outcome) => outcome.to_html(),
             None => "could not be determined".to_string(),
         };
         template = template.replace(

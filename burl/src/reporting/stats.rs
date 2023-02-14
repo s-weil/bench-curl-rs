@@ -66,6 +66,20 @@ pub enum PerformanceOutcome {
     Inconclusive,
 }
 
+impl PerformanceOutcome {
+    pub fn to_html(&self) -> String {
+        match self {
+            PerformanceOutcome::Improved { p_value } => {
+                format!("<font color='green'>improved (p-value {})</font>", p_value)
+            }
+            PerformanceOutcome::Regressed { p_value } => {
+                format!("<font color='red'>regressed (p-value {})</font>", p_value)
+            }
+            PerformanceOutcome::Inconclusive => "inconclusive (no significant change)".to_string(),
+        }
+    }
+}
+
 /// We assume:
 /// - the samples (of durations) to be independent, identical Gaussian random variables
 /// - the number of samples (for each collection) to be sufficiently large, so that the estimated std deviations are good approximations
