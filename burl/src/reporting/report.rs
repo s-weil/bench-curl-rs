@@ -1,6 +1,4 @@
-use crate::reporting::stats::{
-    performance_outcome, NormalParams, PerformanceOutcome, PermutationTester,
-};
+use crate::reporting::stats::{performance_outcome, NormalParams, PermutationTester};
 use crate::{
     reporting::plots::{
         plot_box_plot, plot_bs_histogram, plot_histogram, plot_qq_curve, plot_time_series,
