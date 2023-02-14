@@ -192,7 +192,7 @@ fn unsigned_p_value(np_base: &NormalParams, np: &NormalParams) -> Option<f64> {
     Some(p_value)
 }
 
-/// See the overview of [hypothesis testing](https://www.bmj.com/about-bmj/resources-readers/publications/statistics-square-one/7-t-tests)
+/// See the overview of [t-tests and hypothesis testing](https://www.bmj.com/about-bmj/resources-readers/publications/statistics-square-one/7-t-tests)
 /// We assume:
 /// - the samples (of durations) to be independent, identical Gaussian random variables
 /// - the number of samples (for each collection) to be sufficiently large, so that the estimated std deviations are 'good' approximations
@@ -230,7 +230,7 @@ impl<'a> AnalyticTester<'a> {
 /// is that all samples come from the same distribution;
 /// or in other words, there is no 'significant distinction' between both.
 /// It is used as a proof by contradiction where a p-value below alpha will be reject the null hypothesis.
-/// The advantage of this tester is that it does not rely on an assumption of an underlying distribution.
+/// The advantage of this tester is that it does not rely on assumptions of the underlying distributions.
 pub struct PermutationTester<'a> {
     current_samples: &'a [f64],
     baseline_samples: &'a [f64],
