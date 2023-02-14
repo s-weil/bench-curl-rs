@@ -469,7 +469,7 @@ mod tests {
             }
         );
 
-        let perf_outcome = super::AnalyticTester::new(&np_base, &np_new).test(0.01);
+        let perf_outcome = super::AnalyticTester::new(&np_new, &np_base).test(0.01);
         assert!(perf_outcome.is_some());
         assert_eq!(
             perf_outcome.unwrap(),
