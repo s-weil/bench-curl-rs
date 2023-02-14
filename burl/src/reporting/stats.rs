@@ -213,7 +213,7 @@ impl<'a> PermutationTester<'a> {
     }
 
     fn idx_value(&self, idx: usize) -> Option<f64> {
-        if 0 <= idx && idx < self.baseline_len {
+        if idx < self.baseline_len {
             Some(self.baseline_samples[idx])
         } else if self.baseline_len <= idx && idx < self.total_len {
             Some(self.current_samples[idx - self.baseline_len])

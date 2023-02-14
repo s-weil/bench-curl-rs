@@ -1,4 +1,6 @@
-use crate::reporting::stats::{performance_outcome, NormalParams, PerformanceOutcome};
+use crate::reporting::stats::{
+    performance_outcome, NormalParams, PerformanceOutcome, PermutationTester,
+};
 use crate::{
     reporting::plots::{
         plot_box_plot, plot_bs_histogram, plot_histogram, plot_qq_curve, plot_time_series,
@@ -163,10 +165,32 @@ fn write_baseline_summary_html(
             Some(PerformanceOutcome::Regressed { p_value }) => {
                 format!("<font color='red'>regressed (p-value {})</font>", p_value)
             }
-            Some(PerformanceOutcome::Inconclusive) => "no significant change".to_string(),
+            Some(PerformanceOutcome::Inconclusive) => {
+                "inconclusive (no significant change)".to_string()
+            }
             None => "could not be determined".to_string(),
         };
         template = template.replace("$PERFORMANCE_OUTCOME$", performance_outcome_disp.as_str());
+
+        let permutation_tester =
+            PermutationTester::new(&stats.durations, &baseline_stats.durations);
+        let permutation_outcome = permutation_tester.test(1000, alpha);
+        let permutation_outcome_disp = match permutation_outcome {
+            Some(PerformanceOutcome::Improved { p_value }) => {
+                format!("<font color='green'>improved (p-value {})</font>", p_value)
+            }
+            Some(PerformanceOutcome::Regressed { p_value }) => {
+                format!("<font color='red'>regressed (p-value {})</font>", p_value)
+            }
+            Some(PerformanceOutcome::Inconclusive) => {
+                "inconclusive (no significant change)".to_string()
+            }
+            None => "could not be determined".to_string(),
+        };
+        template = template.replace(
+            "$PERMUTATION_PERFORMANCE_OUTCOME$",
+            permutation_outcome_disp.as_str(),
+        );
     } else {
         template = template.replace(
             "$PERFORMANCE_OUTCOME$",
