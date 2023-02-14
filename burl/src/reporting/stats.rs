@@ -12,6 +12,12 @@ pub type Percentile = f64;
 
 const ZERO_THRESHOLD: f64 = 1e-16;
 
+pub struct NormalParams {
+    pub mean: f64,
+    pub std: f64,
+    pub n_samples: usize,
+}
+
 pub fn requests_per_sec(req_per_duration: f64, scale: &DurationScale) -> Option<f64> {
     if req_per_duration < ZERO_THRESHOLD {
         return None;
@@ -55,86 +61,6 @@ pub fn standard_deviation(samples: &[f64], mean: f64) -> Option<f64> {
     let mean_squared_errors = squared_errors / (n_samples - 1) as f64;
     let std = mean_squared_errors.sqrt();
     Some(std)
-}
-
-pub struct NormalParams {
-    pub mean: f64,
-    pub std: f64,
-    pub n_samples: usize,
-}
-
-#[derive(Debug, PartialEq)]
-pub enum PerformanceOutcome {
-    Regressed { p_value: f64 },
-    Improved { p_value: f64 },
-    Inconclusive,
-}
-
-impl PerformanceOutcome {
-    pub fn to_html(&self) -> String {
-        match self {
-            PerformanceOutcome::Improved { p_value } => {
-                format!("<font color='green'>improved (p-value {})</font>", p_value)
-            }
-            PerformanceOutcome::Regressed { p_value } => {
-                format!("<font color='red'>regressed (p-value {})</font>", p_value)
-            }
-            PerformanceOutcome::Inconclusive => "inconclusive (no significant change)".to_string(),
-        }
-    }
-}
-
-/// We assume:
-/// - the samples (of durations) to be independent, identical Gaussian random variables
-/// - the number of samples (for each collection) to be sufficiently large, so that the estimated std deviations are good approximations
-/// - the two sample collections (of the baseline and the the current run) to be independent with known standard deviations (see prev assumption)
-fn test_statistics(np_base: &NormalParams, np: &NormalParams) -> Option<f64> {
-    // the 'combined' standard deviation
-    // let s2: f64 = ((np.n_samples as f64 - 1.0) * np.std.powi(2)
-    //     + (np_base.n_samples as f64 - 1.0) * np_base.std.powi(2))
-    //     * (((np.n_samples + np_base.n_samples)
-    //         / (np.n_samples * np_base.n_samples * (np.n_samples + np_base.n_samples - 2)))
-    //         as f64);
-
-    // the 'combined' standard deviation
-    let s2 =
-        np_base.std.powi(2) / (np_base.n_samples as f64) + np.std.powi(2) / (np.n_samples as f64);
-
-    if s2.abs() < 1.0e-12 {
-        return None;
-    }
-
-    // value of the test-variable
-    let t = (np_base.mean - np.mean) / s2.sqrt();
-    Some(t)
-}
-
-fn unsigned_p_value(np_base: &NormalParams, np: &NormalParams) -> Option<f64> {
-    // value of the test-variable
-    let t = test_statistics(np_base, np)?;
-    let n = Normal::new(0.0, 1.0).unwrap();
-    let cdf_t = n.cdf(t.abs());
-    let p_value = 1.0 - cdf_t;
-    Some(p_value)
-}
-
-pub(crate) fn performance_outcome(
-    np_base: &NormalParams,
-    np: &NormalParams,
-    alpha: Probablity,
-) -> Option<PerformanceOutcome> {
-    let p_value = unsigned_p_value(np_base, np)?;
-
-    if p_value > alpha {
-        return Some(PerformanceOutcome::Inconclusive);
-    }
-
-    // case of significant performance change
-    if np_base.mean < np.mean {
-        Some(PerformanceOutcome::Regressed { p_value })
-    } else {
-        Some(PerformanceOutcome::Improved { p_value })
-    }
 }
 
 pub fn normal_qq(
@@ -211,10 +137,100 @@ impl<'a> BootstrapSampler<'a> {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub enum PerformanceOutcome {
+    Regressed { p_value: f64 },
+    Improved { p_value: f64 },
+    Inconclusive,
+}
+
+impl PerformanceOutcome {
+    pub fn to_html(&self) -> String {
+        match self {
+            PerformanceOutcome::Improved { p_value } => {
+                format!("<font color='green'>improved (p-value {})</font>", p_value)
+            }
+            PerformanceOutcome::Regressed { p_value } => {
+                format!("<font color='red'>regressed (p-value {})</font>", p_value)
+            }
+            PerformanceOutcome::Inconclusive => "inconclusive (no significant change)".to_string(),
+        }
+    }
+}
+
+/// We assume:
+/// - the samples (of durations) to be independent, identical Gaussian random variables
+/// - the number of samples (for each collection) to be sufficiently large, so that the estimated std deviations are good approximations
+/// - the two sample collections (of the baseline and the the current run) to be independent with known standard deviations (see prev assumption)
+fn test_statistics(np_base: &NormalParams, np: &NormalParams) -> Option<f64> {
+    // the 'combined' standard deviation
+    // let s2: f64 = ((np.n_samples as f64 - 1.0) * np.std.powi(2)
+    //     + (np_base.n_samples as f64 - 1.0) * np_base.std.powi(2))
+    //     * (((np.n_samples + np_base.n_samples)
+    //         / (np.n_samples * np_base.n_samples * (np.n_samples + np_base.n_samples - 2)))
+    //         as f64);
+
+    // the 'combined' standard deviation
+    let s2 =
+        np_base.std.powi(2) / (np_base.n_samples as f64) + np.std.powi(2) / (np.n_samples as f64);
+
+    if s2.abs() < ZERO_THRESHOLD {
+        return None;
+    }
+
+    // value of the test-variable
+    let t = (np_base.mean - np.mean) / s2.sqrt();
+    Some(t)
+}
+
+fn unsigned_p_value(np_base: &NormalParams, np: &NormalParams) -> Option<f64> {
+    // value of the test-variable
+    let t = test_statistics(np_base, np)?;
+    let n = Normal::new(0.0, 1.0).unwrap();
+    let cdf_t = n.cdf(t.abs());
+    let p_value = 1.0 - cdf_t;
+    Some(p_value)
+}
+
+/// See the overview of [hypothesis testing](https://www.bmj.com/about-bmj/resources-readers/publications/statistics-square-one/7-t-tests)
+/// We assume:
+/// - the samples (of durations) to be independent, identical Gaussian random variables
+/// - the number of samples (for each collection) to be sufficiently large, so that the estimated std deviations are 'good' approximations
+/// - the two sample collections (of the baseline and the the current run) to be independent with known standard deviations (see prev assumption)
+pub struct AnalyticTester<'a> {
+    np_baseline: &'a NormalParams,
+    np_current: &'a NormalParams,
+}
+
+impl<'a> AnalyticTester<'a> {
+    pub fn new(np_baseline: &'a NormalParams, np_current: &'a NormalParams) -> Self {
+        Self {
+            np_baseline,
+            np_current,
+        }
+    }
+
+    pub fn test(&self, alpha: Probablity) -> Option<PerformanceOutcome> {
+        let p_value = unsigned_p_value(self.np_baseline, self.np_current)?;
+
+        if p_value > alpha {
+            return Some(PerformanceOutcome::Inconclusive);
+        }
+
+        // case of significant performance change
+        if self.np_baseline.mean < self.np_current.mean {
+            Some(PerformanceOutcome::Regressed { p_value })
+        } else {
+            Some(PerformanceOutcome::Improved { p_value })
+        }
+    }
+}
+
 /// The null hypothesis of the [Permutation test](https://en.wikipedia.org/wiki/Permutation_test)
 /// is that all samples come from the same distribution;
 /// or in other words, there is no 'significant distinction' between both.
 /// It is used as a proof by contradiction where a p-value below alpha will be reject the null hypothesis.
+/// The advantage of this tester is that it does not rely on an assumption of an underlying distribution.
 pub struct PermutationTester<'a> {
     current_samples: &'a [f64],
     baseline_samples: &'a [f64],
@@ -428,7 +444,7 @@ mod tests {
     }
 
     #[test]
-    fn performance_outcome() {
+    fn analytic_test() {
         let np_base = NormalParams {
             mean: 520.0,
             std: 50.0,
@@ -440,11 +456,11 @@ mod tests {
             n_samples: 50,
         };
 
-        let perf_outcome = super::performance_outcome(&np_base, &np_new, 0.005);
+        let perf_outcome = super::AnalyticTester::new(&np_base, &np_new).test(0.005);
         assert!(perf_outcome.is_some());
         assert_eq!(perf_outcome.unwrap(), PerformanceOutcome::Inconclusive);
 
-        let perf_outcome = super::performance_outcome(&np_base, &np_new, 0.01);
+        let perf_outcome = super::AnalyticTester::new(&np_base, &np_new).test(0.01);
         assert!(perf_outcome.is_some());
         assert_eq!(
             perf_outcome.unwrap(),
@@ -453,7 +469,7 @@ mod tests {
             }
         );
 
-        let perf_outcome = super::performance_outcome(&np_new, &np_base, 0.01);
+        let perf_outcome = super::AnalyticTester::new(&np_base, &np_new).test(0.01);
         assert!(perf_outcome.is_some());
         assert_eq!(
             perf_outcome.unwrap(),

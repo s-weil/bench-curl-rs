@@ -1,4 +1,4 @@
-use crate::reporting::stats::{performance_outcome, NormalParams, PermutationTester};
+use crate::reporting::stats::{AnalyticTester, NormalParams, PermutationTester};
 use crate::{
     reporting::plots::{
         plot_box_plot, plot_bs_histogram, plot_histogram, plot_qq_curve, plot_time_series,
@@ -155,7 +155,8 @@ fn write_baseline_summary_html(
     if stats.scale == baseline_stats.scale {
         let np = NormalParams::from(stats);
         let np_baseline = NormalParams::from(baseline_stats);
-        let performance_outcome = performance_outcome(&np_baseline, &np, alpha);
+        let analytic_test = AnalyticTester::new(&np_baseline, &np);
+        let performance_outcome = analytic_test.test(alpha);
         let performance_outcome_disp = match performance_outcome {
             Some(outcome) => outcome.to_html(),
             None => "could not be determined".to_string(),
