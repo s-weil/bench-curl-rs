@@ -306,7 +306,7 @@ impl<'a> PermutationTester<'a> {
         let test_diff = baseline_mean - current_mean;
 
         let n_extreme_diffs = mean_diff_samples.iter().fold(0, |acc, diff| {
-            // baseline_mean >= current_mean
+            // baseline_mean >= current_mean || aseline_mean <= current_mean
             if (0.0 <= test_diff && test_diff <= *diff) || (*diff <= test_diff && test_diff < 0.0) {
                 acc + 1
             } else {
