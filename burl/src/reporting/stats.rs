@@ -6,6 +6,10 @@ use statrs::distribution::ContinuousCDF;
 use statrs::distribution::Normal;
 use std::collections::HashSet;
 
+pub type Probablity = f64; // values in [0,1]
+pub type Percentage = f64; // values in [0,100]
+pub type Percentile = f64;
+
 const ZERO_THRESHOLD: f64 = 1e-16;
 
 pub fn requests_per_sec(req_per_duration: f64, scale: &DurationScale) -> Option<f64> {
@@ -117,7 +121,7 @@ fn unsigned_p_value(np_base: &NormalParams, np: &NormalParams) -> Option<f64> {
 pub(crate) fn performance_outcome(
     np_base: &NormalParams,
     np: &NormalParams,
-    alpha: f64,
+    alpha: Probablity,
 ) -> Option<PerformanceOutcome> {
     let p_value = unsigned_p_value(np_base, np)?;
 
@@ -133,7 +137,10 @@ pub(crate) fn performance_outcome(
     }
 }
 
-pub fn normal_qq(percentiles_by_level: &[(f64, f64)], np: &NormalParams) -> Vec<(f64, f64)> {
+pub fn normal_qq(
+    percentiles_by_level: &[(Percentage, Percentile)],
+    np: &NormalParams,
+) -> Vec<(Percentile, Percentile)> {
     let normal = Normal::new(np.mean, np.std).unwrap();
 
     let qq = percentiles_by_level
@@ -207,6 +214,7 @@ impl<'a> BootstrapSampler<'a> {
 /// The null hypothesis of the [Permutation test](https://en.wikipedia.org/wiki/Permutation_test)
 /// is that all samples come from the same distribution;
 /// or in other words, there is no 'significant distinction' between both.
+/// It is used as a proof by contradiction where a p-value below alpha will be reject the null hypothesis.
 pub struct PermutationTester<'a> {
     current_samples: &'a [f64],
     baseline_samples: &'a [f64],
