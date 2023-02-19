@@ -1,10 +1,9 @@
-use crate::reporting::stats::{AnalyticTester, NormalParams, PermutationTester};
+use crate::sampling::{SampleCollector, SampleResult};
+use crate::stats::{AnalyticTester, NormalParams, PermutationTester, StatsSummary};
 use crate::{
     reporting::plots::{
         plot_box_plot, plot_bs_histogram, plot_histogram, plot_qq_curve, plot_time_series,
     },
-    reporting::StatsSummary,
-    sampling::{SampleCollector, SampleResult},
     BenchConfig, BurlError, BurlResult, ThreadIdx,
 };
 use chrono::{DateTime, Utc};

@@ -1,4 +1,4 @@
-use crate::reporting::StatsSummary;
+use crate::stats::StatsSummary;
 use crate::ThreadIdx;
 use plotly::box_plot::{BoxMean, BoxPoints};
 use plotly::common::{Line, LineShape, Marker, Mode, Title};

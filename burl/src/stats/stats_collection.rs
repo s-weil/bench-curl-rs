@@ -91,6 +91,10 @@ impl From<&SampleCollector> for ThreadStats {
     }
 }
 
+pub struct StatsAggregator<'a> {
+    thread_stats: &'a [ThreadStats],
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StatsSummary {
     pub durations: Vec<f64>,

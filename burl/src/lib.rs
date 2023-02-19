@@ -2,6 +2,7 @@ mod config;
 mod errors;
 mod reporting;
 mod sampling;
+mod stats;
 
 pub use config::BenchConfig;
 pub(crate) use config::ConcurrenyLevel;
