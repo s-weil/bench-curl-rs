@@ -66,7 +66,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         trace!("initializing runner with {:?}", &specs);
         let bencher = BenchClient::init(&specs)?;
         if let Some(report) = bencher.start_run().await {
-            if let Some(stats) = &report.stats {
+            if let Some(stats) = &report.stats() {
                 info!("{}", stats);
             }
             if let Err(err) = report.create_report() {

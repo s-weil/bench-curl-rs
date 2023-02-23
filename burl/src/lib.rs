@@ -4,6 +4,7 @@ mod reporting;
 mod sampling;
 mod stats;
 
+use crate::stats::StatsProcessor;
 pub use config::BenchConfig;
 pub(crate) use config::ConcurrenyLevel;
 pub use errors::{BurlError, BurlResult};
@@ -34,6 +35,7 @@ impl<'a> BenchClient<'a> {
         })
     }
 
+    // TODO: split into collection of samples and report creation
     pub async fn start_run(&self) -> Option<ReportSummary<'a>> {
         let report_start_time = Utc::now();
 
@@ -58,59 +60,55 @@ impl<'a> BenchClient<'a> {
             }
         }
 
-        // `global` timer over all threads
-        let timer = Arc::new(Instant::now());
-
-        let mut samples_by_thread = Vec::new();
-
-        match self.config.concurrency_level() {
+        let n_threads = match self.config.concurrency_level() {
             ConcurrenyLevel::Sequential => {
                 info!(
                     "Starting measurement of {} samples from {}",
                     n_runs, self.config.url,
                 );
-                let mut sampler =
-                    SampleCollector::new(timer.clone(), 0, n_runs, duration_scale.clone());
-                sampler.collect_samples(request_builder).await;
-                samples_by_thread.push(sampler);
+                1
             }
             ConcurrenyLevel::Concurrent(n_threads) => {
                 info!(
                     "Starting measurement of {} samples (on each of {} threads) from {}",
                     n_runs, n_threads, self.config.url
                 );
-                let mut tasks = Vec::with_capacity(n_threads);
-                // NOTE: cannot use rayon due to unsatisfied trait bounds
-                for thread_idx in 0..n_threads.max(1) {
-                    let request_builder = request_builder.try_clone().unwrap();
-
-                    let mut sampler = SampleCollector::new(
-                        timer.clone(),
-                        thread_idx,
-                        n_runs,
-                        duration_scale.clone(),
-                    );
-
-                    let sampler = tokio::spawn(async move {
-                        sampler.collect_samples(request_builder).await;
-                        sampler
-                    });
-
-                    tasks.push(sampler);
-                }
-
-                for task in tasks {
-                    samples_by_thread.push(task.await.unwrap());
-                }
+                n_threads.max(1)
             }
         };
 
+        // `global` timer over all threads
+        let timer = Arc::new(Instant::now());
+
+        // TODO: consider to use thread scope below
+        let mut tasks = Vec::with_capacity(n_threads);
+        // NOTE: cannot use rayon due to unsatisfied trait bounds
+        for thread_idx in 0..n_threads.max(1) {
+            let request_builder = request_builder.try_clone().unwrap();
+
+            let mut sampler =
+                SampleCollector::new(timer.clone(), thread_idx, n_runs, duration_scale.clone());
+
+            let sampler = tokio::spawn(async move {
+                sampler.collect_samples(request_builder).await;
+                sampler
+            });
+
+            tasks.push(sampler);
+        }
+
+        let mut samples_by_thread = Vec::new();
+        for task in tasks {
+            samples_by_thread.push(task.await.unwrap());
+        }
+
         let report_end_time = Utc::now();
+        let stats_processor = StatsProcessor::new(self.config.duration_scale(), samples_by_thread);
         Some(ReportSummary::new(
             report_start_time,
             report_end_time,
             self.config,
-            samples_by_thread,
+            stats_processor,
         ))
     }
 }

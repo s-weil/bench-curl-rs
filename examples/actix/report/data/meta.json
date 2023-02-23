@@ -1,6 +1,6 @@
 {
-  "start_time": "2023-02-10 17:04:15",
-  "end_time": "2023-02-10 17:04:15",
+  "start_time": "2023-02-14 16:01:22",
+  "end_time": "2023-02-14 16:01:22",
   "config": {
     "url": "http://localhost:8080/items/",
     "method": "Post",
@@ -20,6 +20,11 @@
     "n_warmup_runs": 500,
     "concurrency_level": 4,
     "report_directory": "examples/actix/report",
-    "baseline_path": "examples/fastapi/report/data"
+    "baseline_path": "examples/actix/report/data",
+    "stats_config": {
+      "alpha": 0.05,
+      "n_bootstrap_samples": null,
+      "n_bootstrap_draw_size": null
+    }
   }
 }

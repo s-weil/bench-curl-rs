@@ -1,5 +1,5 @@
-use crate::sampling::{SampleCollector, SampleResult};
-use crate::stats::{AnalyticTester, NormalParams, PermutationTester, StatsSummary};
+use crate::sampling::SampleResult;
+use crate::stats::{AnalyticTester, NormalParams, PermutationTester, StatsProcessor, StatsSummary};
 use crate::{
     reporting::plots::{
         plot_box_plot, plot_bs_histogram, plot_histogram, plot_qq_curve, plot_time_series,
@@ -225,8 +225,9 @@ fn write_baseline_summary_html(
 
 pub struct ReportSummary<'a> {
     config: &'a BenchConfig,
-    sample_results_by_thread: HashMap<ThreadIdx, Vec<SampleResult>>,
-    pub stats: Option<StatsSummary>,
+    // sample_results_by_thread: HashMap<ThreadIdx, Vec<SampleResult>>,
+    // pub stats: Option<StatsSummary>,
+    stats_processor: StatsProcessor,
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
 }
@@ -236,32 +237,40 @@ impl<'a> ReportSummary<'a> {
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         config: &'a BenchConfig,
-        samples_by_thread: Vec<SampleCollector>,
-    ) -> Self {
-        let stats = StatsSummary::collect(&samples_by_thread, config.duration_scale());
 
-        let sample_results_by_thread = samples_by_thread
-            .into_iter()
-            .map(|samples| {
-                let sample_results = samples
-                    .results
-                    .into_iter()
-                    .flat_map(|sr| sr.as_result().cloned())
-                    .collect();
-                (samples.thread_idx, sample_results)
-            })
-            .collect();
+        stats_processor: StatsProcessor,
+        // samples_by_thread: Vec<SampleCollector>,
+    ) -> Self {
+        // let stats = StatsSummary::collect(&samples_by_thread, config.duration_scale());
+
+        // let sample_results_by_thread = samples_by_thread
+        //     .into_iter()
+        //     .map(|samples| {
+        //         let sample_results = samples
+        //             .results
+        //             .into_iter()
+        //             .flat_map(|sr| sr.as_result().cloned())
+        //             .collect();
+        //         (samples.thread_idx, sample_results)
+        //     })
+        //     .collect();
 
         Self {
             config,
-            stats,
-            sample_results_by_thread,
+            // stats,
+            // sample_results_by_thread,
+            stats_processor,
             start_time,
             end_time,
         }
     }
 
-    fn dump_data(&self, dir: PathBuf) -> Result<(), BurlError> {
+    fn dump_data(
+        &self,
+        dir: PathBuf,
+        stats: &Option<StatsSummary>,
+        sample_results_by_thread: &HashMap<ThreadIdx, Vec<SampleResult>>,
+    ) -> Result<(), BurlError> {
         let stats_file = dir.join("stats.json");
         let samples_file = dir.join("samples.json");
         let meta_file = dir.join("meta.json");
@@ -275,9 +284,9 @@ impl<'a> ReportSummary<'a> {
         let report_meta = ReportMeta::from(self);
 
         // creates or updates the files and its contents
-        write_or_update(&self.stats, stats_file)?;
+        write_or_update(stats, stats_file)?;
         write_or_update(&report_meta, meta_file)?;
-        write_or_update(&self.sample_results_by_thread, samples_file)?;
+        write_or_update(&sample_results_by_thread, samples_file)?;
 
         Ok(())
     }
@@ -314,8 +323,10 @@ impl<'a> ReportSummary<'a> {
         &self,
         components_dir: Option<PathBuf>,
         baseline_stats: Option<StatsSummary>,
+        current_stats: &Option<StatsSummary>,
+        sample_results_by_thread: &HashMap<ThreadIdx, Vec<SampleResult>>,
     ) -> BurlResult<()> {
-        if let Some(stats) = &self.stats {
+        if let Some(stats) = current_stats {
             if let Some(dir) = &components_dir {
                 let file = dir.join("summary.html");
                 if let Some(bl_stats) = baseline_stats {
@@ -342,8 +353,7 @@ impl<'a> ReportSummary<'a> {
             }
         }
 
-        let time_series = self
-            .sample_results_by_thread
+        let time_series = sample_results_by_thread
             .iter()
             .map(|(thread_idx, sample_results)| {
                 let ts = sample_results
@@ -358,17 +368,29 @@ impl<'a> ReportSummary<'a> {
     }
 
     pub fn create_report(&self) -> Result<(), BurlError> {
+        let current_results: Option<StatsSummary> = self.stats_processor.create_stats_summary();
+        let sample_results_by_thread = self.stats_processor.sample_results_by_thread();
+
         if let Some(report_path) = &self.config.report_directory {
             let path = Path::new(report_path);
             let (components_dir, data_dir) = setup_report_structure(path)?;
 
             let baseline_results: Option<StatsSummary> = self.baseline_results(&data_dir);
-            self.dump_data(data_dir)?;
-            self.create_components(Some(components_dir), baseline_results)?;
+            self.dump_data(data_dir, &current_results, &sample_results_by_thread)?;
+            self.create_components(
+                Some(components_dir),
+                baseline_results,
+                &current_results,
+                &sample_results_by_thread,
+            )?;
         } else {
-            self.create_components(None, None)?;
+            self.create_components(None, None, &current_results, &sample_results_by_thread)?;
         }
 
         Ok(())
+    }
+
+    pub fn stats(&self) -> Option<StatsSummary> {
+        self.stats_processor.create_stats_summary()
     }
 }
