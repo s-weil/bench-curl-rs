@@ -55,13 +55,14 @@ impl RequestResult {
 }
 
 pub type StatusCode = usize;
+const SUCCESS: usize = 200;
 
 /// Creates and collects samples:
 /// Iteratively sends the same request, measures timings and responses and adds results.
 pub struct SampleCollector {
-    timer: Arc<Instant>,               // TODO: as param? same as for requestBuilder?
-    pub duration_scale: DurationScale, // TODO: Arc?
+    timer: Arc<Instant>, // TODO: as param? same as for requestBuilder?
     pub thread_idx: ThreadIdx,
+    pub duration_scale: DurationScale, // TODO: Arc?
     pub n_runs: usize,
     pub results: Vec<RequestResult>,
 }
@@ -91,7 +92,7 @@ impl SampleCollector {
         content_length: Option<u64>,
     ) {
         let result = match status_code {
-            200 => RequestResult::Ok(SampleResult {
+            SUCCESS => RequestResult::Ok(SampleResult {
                 measurement_start: self.duration_scale.elapsed(&duration_since_start),
                 measurement_end: self.duration_scale.elapsed(&duration_request_end),
                 duration: self.duration_scale.elapsed(&request_duration),
@@ -100,9 +101,9 @@ impl SampleCollector {
                 request_duration,
                 content_length,
             }),
-            sc => {
-                warn!("Received response with status code {}", sc);
-                RequestResult::Failed(sc)
+            status_code => {
+                warn!("Received response with status code {}", status_code);
+                RequestResult::Failed(status_code)
             }
         };
 

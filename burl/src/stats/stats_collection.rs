@@ -9,9 +9,9 @@ use crate::{
 };
 use log::warn;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt::Display};
+use std::{collections::HashMap, default, fmt::Display};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct ThreadStats {
     #[serde(skip_deserializing)]
     #[serde(skip_serializing)] // serialize or not?
@@ -67,33 +67,41 @@ impl From<&SampleCollector> for ThreadStats {
         }
 
         let n = durations.len();
-        let (total_duration, mean, std, max, min) = if n > 0 {
-            let sum = sum(&durations);
-            let mean = sum / (n as f64);
-            let std = standard_deviation(&durations, mean);
-            (Some(sum), Some(mean), std, Some(max), Some(min))
-        } else {
-            (None, None, None, None, None)
-        };
 
-        Self {
+        if n == 0 {
+            return Self {
+                total_bytes,
+                durations,
+                errors,
+                n_ok,
+                n_errors,
+                ..Self::default()
+            };
+        }
+
+        let sum = sum(&durations);
+        let mean = sum / (n as f64);
+        let std = standard_deviation(&durations, mean);
+        return Self {
             total_bytes,
             durations,
             errors,
             n_ok,
             n_errors,
-            total_duration,
-            mean,
+            total_duration: Some(sum),
+            mean: Some(mean),
             std,
-            max,
-            min,
-        }
+            max: Some(max),
+            min: Some(min),
+        };
     }
 }
 
 pub struct StatsAggregator<'a> {
     thread_stats: &'a [ThreadStats],
 }
+
+// impl StatsAggregator {}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StatsSummary {
