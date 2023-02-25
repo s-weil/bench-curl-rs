@@ -127,7 +127,7 @@ impl StatsProcessor {
     }
 
     /// Collect the sample results from the threads' samples.
-    pub fn create_stats_summary(&self) -> Option<StatsSummary> {
+    pub fn stats_summary(&self) -> Option<StatsSummary> {
         let mut durations = Vec::new();
         let mut stats_by_thread = HashMap::new();
         let mut total_bytes = 0;

@@ -44,9 +44,9 @@ impl<'a> BenchClient<'a> {
         let n_runs = self.config.n_runs();
 
         let request_builder = match self.request_factory.assemble_request(self.config) {
-            Some(req) => req,
-            None => {
-                error!("Failed to compile the request");
+            Ok(req) => req,
+            Err(error) => {
+                error!("Failed to compile the request. {}", error);
                 return None;
             }
         };

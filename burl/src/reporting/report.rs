@@ -225,8 +225,6 @@ fn write_baseline_summary_html(
 
 pub struct ReportSummary<'a> {
     config: &'a BenchConfig,
-    // sample_results_by_thread: HashMap<ThreadIdx, Vec<SampleResult>>,
-    // pub stats: Option<StatsSummary>,
     stats_processor: StatsProcessor,
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
@@ -239,26 +237,9 @@ impl<'a> ReportSummary<'a> {
         config: &'a BenchConfig,
 
         stats_processor: StatsProcessor,
-        // samples_by_thread: Vec<SampleCollector>,
     ) -> Self {
-        // let stats = StatsSummary::collect(&samples_by_thread, config.duration_scale());
-
-        // let sample_results_by_thread = samples_by_thread
-        //     .into_iter()
-        //     .map(|samples| {
-        //         let sample_results = samples
-        //             .results
-        //             .into_iter()
-        //             .flat_map(|sr| sr.as_result().cloned())
-        //             .collect();
-        //         (samples.thread_idx, sample_results)
-        //     })
-        //     .collect();
-
         Self {
             config,
-            // stats,
-            // sample_results_by_thread,
             stats_processor,
             start_time,
             end_time,
@@ -277,7 +258,7 @@ impl<'a> ReportSummary<'a> {
 
         if stats_file.exists() | meta_file.exists() | samples_file.exists() {
             if let Err(err) = hist_results(&dir) {
-                warn!("Overwriting base line results: {}", err);
+                warn!("Overwriting existing baseline results: {}", err);
             }
         }
 
@@ -368,7 +349,7 @@ impl<'a> ReportSummary<'a> {
     }
 
     pub fn create_report(&self) -> Result<(), BurlError> {
-        let current_results: Option<StatsSummary> = self.stats_processor.create_stats_summary();
+        let current_results: Option<StatsSummary> = self.stats_processor.stats_summary();
         let sample_results_by_thread = self.stats_processor.sample_results_by_thread();
 
         if let Some(report_path) = &self.config.report_directory {
@@ -391,6 +372,6 @@ impl<'a> ReportSummary<'a> {
     }
 
     pub fn stats(&self) -> Option<StatsSummary> {
-        self.stats_processor.create_stats_summary()
+        self.stats_processor.stats_summary()
     }
 }

@@ -7,6 +7,9 @@ pub enum BurlError {
 
     #[error("Serialization error: {0}")]
     SerDe(#[from] serde_json::Error),
+
+    #[error("Invalid configuration: {issue}")]
+    InvalidConfig { issue: String },
 }
 
 pub type BurlResult<T> = Result<T, BurlError>;

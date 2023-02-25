@@ -1,5 +1,5 @@
-use crate::BenchConfig;
-use log::{error, warn};
+use crate::{BenchConfig, BurlError, BurlResult};
+use log::warn;
 use reqwest::{Client, ClientBuilder, RequestBuilder, Result};
 use serde::{Deserialize, Serialize};
 
@@ -43,7 +43,7 @@ impl RequestFactory {
         Ok(Self { client })
     }
 
-    pub fn assemble_request(&self, config: &BenchConfig) -> Option<RequestBuilder> {
+    pub fn assemble_request(&self, config: &BenchConfig) -> BurlResult<RequestBuilder> {
         let mut request = match config.method {
             Method::Get => self.client.get(&config.url),
             Method::Post => {
@@ -54,8 +54,10 @@ impl RequestFactory {
                     let gql_query_payload = GqlQuery { query };
                     request.json(&gql_query_payload)
                 } else {
-                    error!("Expected either `json_payload` or `gql_query` in the config.");
-                    return None;
+                    return Err(BurlError::InvalidConfig {
+                        issue: "Expected either `json_payload` or `gql_query` for the POST request"
+                            .to_string(),
+                    });
                 }
             }
             _ => unimplemented!("todo"),
@@ -76,6 +78,6 @@ impl RequestFactory {
         // NOTE: should be redundant (as default in HTTP/1.1) but to make sure
         request = request.header("Connection", "keep-alive");
 
-        Some(request)
+        Ok(request)
     }
 }
