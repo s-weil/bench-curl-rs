@@ -1,4 +1,4 @@
-use burl::BenchConfig;
+use crate::config::BenchConfig;
 use log::error;
 use std::{fs, path::Path};
 

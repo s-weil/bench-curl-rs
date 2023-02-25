@@ -182,8 +182,7 @@ pub struct StatsSummary {
     pub std: Option<f64>,
     pub n_ok: usize,
     pub n_errors: usize,
-    pub qq_percentiles: Vec<(f64, f64)>,
-
+    // pub qq_percentiles: Vec<(f64, f64)>,
     pub stats_by_thread: HashMap<ThreadIdx, ThreadStats>,
 
     #[serde(skip_serializing)]
@@ -286,7 +285,7 @@ impl StatsSummary {
                 n_samples: self.n_ok,
             };
 
-            normal_qq(&self.qq_percentiles, &np)
+            normal_qq(&self.qq_percentiles(), &np)
         } else {
             Vec::with_capacity(0)
         }
@@ -338,15 +337,15 @@ impl StatsSummary {
         //     .map(|level| (level * 100.0, percentile(&durations, level, n as f64)))
         //     .collect();
 
-        let n_percentiles = durations.len() / 10;
-        let qq_percentiles = (1..n_percentiles)
-            .map(|level| {
-                (
-                    level as f64 * 100.0 / (n_percentiles as f64),
-                    percentile(&durations, level as f64 / (n_percentiles as f64), n as f64),
-                )
-            })
-            .collect();
+        // let n_percentiles = durations.len() / 10;
+        // let qq_percentiles = (1..n_percentiles)
+        //     .map(|level| {
+        //         (
+        //             level as f64 * 100.0 / (n_percentiles as f64),
+        //             percentile(&durations, level as f64 / (n_percentiles as f64), n as f64),
+        //         )
+        //     })
+        //     .collect();
 
         Some(StatsSummary {
             scale,
@@ -365,8 +364,28 @@ impl StatsSummary {
             errors,
             n_ok: n - n_errors,
             stats_by_thread,
-            qq_percentiles,
+            // qq_percentiles,
         })
+    }
+
+    fn qq_percentiles(&self) -> Vec<(f64, f64)> {
+        let n_percentiles = self.durations.len() / 10;
+        if n_percentiles == 0 {
+            return Vec::with_capacity(0);
+        }
+        let qq_percentiles = (1..n_percentiles)
+            .map(|level| {
+                (
+                    level as f64 * 100.0 / (n_percentiles as f64),
+                    percentile(
+                        &self.durations,
+                        level as f64 / (n_percentiles as f64),
+                        self.durations.len() as f64,
+                    ),
+                )
+            })
+            .collect();
+        qq_percentiles
     }
 
     pub fn bootstrap_summary(
@@ -379,46 +398,5 @@ impl StatsSummary {
             BootstrapSampler::new(&self.durations).sample_means(n_draws, n_samples);
         let confidence_interval = confidence_interval(&bootstrap_means, alpha);
         (bootstrap_means, confidence_interval)
-    }
-}
-
-pub struct StatisticalTester<'a> {
-    current_stats: &'a StatsSummary,
-    baseline_stats: &'a StatsSummary,
-    stats_config: &'a StatsConfig,
-}
-
-impl<'a> StatisticalTester<'a> {
-    pub fn try_new(
-        current_stats: &'a StatsSummary,
-        baseline_stats: &'a StatsSummary,
-        stats_config: &'a StatsConfig,
-    ) -> Option<Self> {
-        if current_stats.scale != baseline_stats.scale {
-            return None;
-        }
-        Some(Self {
-            current_stats,
-            baseline_stats,
-            stats_config,
-        })
-    }
-
-    fn performance_test(&self, alpha: f64) -> Option<TestOutcome> {
-        let current_durations = self.current_stats.durations;
-        let baseline_durations = self.baseline_stats.durations;
-
-        let permutation_tester = PermutationTester::new(&current_durations, &baseline_durations);
-        let n_samples = self.stats_config.n_bootstrap_samples.unwrap_or(1_000);
-        let permutation_outcome = permutation_tester.test(n_samples, alpha);
-        permutation_outcome
-    }
-
-    fn analytic_test(&self, alpha: f64) -> Option<TestOutcome> {
-        let current_normal = NormalParams::from(self.current_stats);
-        let baseline_normal = NormalParams::from(self.baseline_stats);
-        let analytic_test = AnalyticTester::new(&baseline_normal, &current_normal);
-        let performance_outcome = analytic_test.test(alpha);
-        performance_outcome
     }
 }

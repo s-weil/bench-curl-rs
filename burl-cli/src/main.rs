@@ -2,6 +2,7 @@ extern crate clap;
 
 use crate::parser::{from_get_url, parse_toml};
 use burl::BenchClient;
+// use burl_reporter::
 use clap::{Parser, Subcommand};
 use env_logger::Env;
 use log::{error, info, trace};
@@ -60,12 +61,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     } {
-        trace!("initializing runner with {:?}", &specs);
+        trace!("Initializing runner with {:?}", &specs);
         let bencher = BenchClient::init(&specs)?;
-        if let Some(report) = bencher.start_run().await {
-            if let Some(stats) = &report.stats() {
+        if let Some(run_summary) = bencher.start_run().await {
+            if let Some(stats) = &run_summary.stats() {
                 info!("{}", stats);
             }
+
+            // let report_summary = bench_reporter::
+
             if let Err(err) = report.create_report() {
                 error!("Report creation failed: {}", err);
             }

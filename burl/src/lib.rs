@@ -1,22 +1,35 @@
 mod config;
 mod errors;
-mod reporting;
+mod parser;
 mod sampling;
 mod stats;
 
+pub use crate::parser::parse_toml;
 use crate::stats::StatsProcessor;
 pub use config::BenchConfig;
 pub(crate) use config::ConcurrenyLevel;
 pub use errors::{BurlError, BurlResult};
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use log::{error, info};
-use reporting::ReportSummary;
 use sampling::{RequestFactory, SampleCollector};
+use stats::StatsSummary;
 use std::sync::Arc;
 use tokio::time::Instant;
 
 pub type ThreadIdx = usize;
+
+pub struct RunSummary {
+    stats_processor: StatsProcessor,
+    pub start_time: DateTime<Utc>,
+    pub end_time: DateTime<Utc>,
+}
+
+impl RunSummary {
+    pub fn stats(&self) -> Option<StatsSummary> {
+        self.stats_processor.stats_summary()
+    }
+}
 
 pub struct BenchClient<'a> {
     request_factory: RequestFactory,
@@ -36,12 +49,11 @@ impl<'a> BenchClient<'a> {
     }
 
     // TODO: split into collection of samples and report creation
-    pub async fn start_run(&self) -> Option<ReportSummary<'a>> {
-        let report_start_time = Utc::now();
-
-        let duration_scale = self.config.duration_scale();
+    pub async fn start_run(&self) -> Option<RunSummary> {
+        let start_time = Utc::now();
 
         let n_runs = self.config.n_runs();
+        let scale = self.config.duration_scale();
 
         let request_builder = match self.request_factory.assemble_request(self.config) {
             Ok(req) => req,
@@ -86,8 +98,12 @@ impl<'a> BenchClient<'a> {
         for thread_idx in 0..n_threads.max(1) {
             let request_builder = request_builder.try_clone().unwrap();
 
-            let mut sampler =
-                SampleCollector::new(timer.clone(), thread_idx, n_runs, duration_scale.clone());
+            let mut sampler = SampleCollector::new(
+                timer.clone(),
+                thread_idx,
+                n_runs,
+                self.config.duration_scale().clone(),
+            );
 
             let sampler = tokio::spawn(async move {
                 sampler.collect_samples(request_builder).await;
@@ -102,13 +118,12 @@ impl<'a> BenchClient<'a> {
             samples_by_thread.push(task.await.unwrap());
         }
 
-        let report_end_time = Utc::now();
-        let stats_processor = StatsProcessor::new(self.config.duration_scale(), samples_by_thread);
-        Some(ReportSummary::new(
-            report_start_time,
-            report_end_time,
-            self.config,
+        let end_time = Utc::now();
+        let stats_processor = StatsProcessor::new(scale.clone(), samples_by_thread);
+        Some(RunSummary {
             stats_processor,
-        ))
+            start_time,
+            end_time,
+        })
     }
 }
