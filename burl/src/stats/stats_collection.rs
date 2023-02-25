@@ -1,10 +1,9 @@
 use super::{
     confidence_interval, normal_qq, percentile, requests_per_sec, standard_deviation,
-    stats::{NormalParams, TestOutcome},
-    sum, AnalyticTester, BootstrapSampler, PermutationTester,
+    stats::NormalParams, sum, BootstrapSampler,
 };
 use crate::{
-    config::{DurationScale, StatsConfig},
+    config::DurationScale,
     sampling::{RequestResult, SampleCollector, SampleResult, StatusCode},
     ThreadIdx,
 };
@@ -203,26 +202,26 @@ impl Display for StatsSummary {
             &self.scale,
             &self.stats_by_thread.len()
         )?;
-        writeln!(f, "Total bytes      | {}", self.total_bytes)?;
-        writeln!(f, "Number ok        | {}", self.n_ok)?;
-        writeln!(f, "Number failed    | {}", self.n_errors)?;
+        writeln!(f, "Total bytes     | {}", self.total_bytes)?;
+        writeln!(f, "Number ok       | {}", self.n_ok)?;
+        writeln!(f, "Number failed   | {}", self.n_errors)?;
         if let Some(rps) = self.mean_rps {
             writeln!(f, "Mean requests/s | {}", rps)?;
         }
 
         writeln!(f, "_______DURATIONS_______________________________")?;
-        writeln!(f, "Total          | {}", self.total_duration)?;
-        writeln!(f, "Mean           | {}", self.mean)?;
+        writeln!(f, "Total        | {}", self.total_duration)?;
+        writeln!(f, "Mean         | {}", self.mean)?;
         // writeln!(f, "Requests per sec | {}", self.mean)?;
 
         if let Some(std) = self.std {
-            writeln!(f, "StdDev         | {}", std)?;
+            writeln!(f, "StdDev       | {}", std)?;
         }
-        writeln!(f, "Min            | {}", self.min)?;
-        writeln!(f, "Quartile 1st   | {}", self.quartile_fst)?;
-        writeln!(f, "Median         | {}", self.median)?;
-        writeln!(f, "Quartile 3rd   | {}", self.quartile_trd)?;
-        writeln!(f, "Max            | {}", self.max)?;
+        writeln!(f, "Min          | {}", self.min)?;
+        writeln!(f, "Quartile 1st | {}", self.quartile_fst)?;
+        writeln!(f, "Median       | {}", self.median)?;
+        writeln!(f, "Quartile 3rd | {}", self.quartile_trd)?;
+        writeln!(f, "Max          | {}", self.max)?;
 
         if self.n_ok >= N_PERCENTILES {
             writeln!(f, "_______PERCENTILES_____________________________")?;
@@ -242,11 +241,11 @@ impl Display for StatsSummary {
             };
 
             writeln!(f, "_______THREADS_________________________________")?;
-            writeln!(f, "(Idx : num ok) | total | mean | std | min | max")?;
+            writeln!(f, "[ThreadIdx : num ok] total | mean | std | min | max")?;
             for (thread_idx, thread_stats) in self.stats_by_thread.iter() {
                 writeln!(
                     f,
-                    "({}: {}) | {} | {} | {} | {} | {}",
+                    "[{}: {}] {} | {} | {} | {} | {}",
                     thread_idx,
                     thread_stats.n_ok,
                     format_option(thread_stats.total_duration),
@@ -373,7 +372,7 @@ impl StatsSummary {
         if n_percentiles == 0 {
             return Vec::with_capacity(0);
         }
-        let qq_percentiles = (1..n_percentiles)
+        (1..n_percentiles)
             .map(|level| {
                 (
                     level as f64 * 100.0 / (n_percentiles as f64),
@@ -384,8 +383,7 @@ impl StatsSummary {
                     ),
                 )
             })
-            .collect();
-        qq_percentiles
+            .collect()
     }
 
     pub fn bootstrap_summary(

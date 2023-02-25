@@ -1,24 +1,36 @@
-use crate::{
-    stats::{StatsSummary, TestOutcome},
+use burl::{
+    stats::{AnalyticTester, NormalParams, PermutationTester, StatsSummary, TestOutcome},
     BurlResult,
 };
 use std::{fs, path::PathBuf};
 
-impl TestOutcome {
-    pub fn to_html(&self) -> String {
-        match self {
-            TestOutcome::Improved { p_value } => {
-                format!("<font color='green'>improved (p-value {})</font>", p_value)
-            }
-            TestOutcome::Regressed { p_value } => {
-                format!("<font color='red'>regressed (p-value {})</font>", p_value)
-            }
-            TestOutcome::Inconclusive => "inconclusive (no significant change)".to_string(),
+// impl TestOutcome {
+//     pub fn to_html(&self) -> String {
+//         match self {
+//             TestOutcome::Improved { p_value } => {
+//                 format!("<font color='green'>improved (p-value {})</font>", p_value)
+//             }
+//             TestOutcome::Regressed { p_value } => {
+//                 format!("<font color='red'>regressed (p-value {})</font>", p_value)
+//             }
+//             TestOutcome::Inconclusive => "inconclusive (no significant change)".to_string(),
+//         }
+//     }
+// }
+
+fn test_outcome_html(test_outcome: &TestOutcome) -> String {
+    match test_outcome {
+        TestOutcome::Improved { p_value } => {
+            format!("<font color='green'>improved (p-value {})</font>", p_value)
         }
+        TestOutcome::Regressed { p_value } => {
+            format!("<font color='red'>regressed (p-value {})</font>", p_value)
+        }
+        TestOutcome::Inconclusive => "inconclusive (no significant change)".to_string(),
     }
 }
 
-fn write_summary_html(stats: &StatsSummary, file: PathBuf) -> BurlResult<()> {
+pub(crate) fn write_summary_html(stats: &StatsSummary, file: PathBuf) -> BurlResult<()> {
     let mut template = include_str!("./templates/summary_template.html").to_string();
     template = template.replace("$SCALE$", stats.scale.clone().to_string().as_str());
 
@@ -44,7 +56,7 @@ fn write_summary_html(stats: &StatsSummary, file: PathBuf) -> BurlResult<()> {
     Ok(())
 }
 
-fn write_baseline_summary_html(
+pub(crate) fn write_baseline_summary_html(
     stats: &StatsSummary,
     baseline_stats: &StatsSummary,
     alpha: f64,
@@ -66,7 +78,7 @@ fn write_baseline_summary_html(
         let analytic_test = AnalyticTester::new(&np_baseline, &np);
         let performance_outcome = analytic_test.test(alpha);
         let performance_outcome_disp = match performance_outcome {
-            Some(outcome) => outcome.to_html(),
+            Some(outcome) => test_outcome_html(&outcome),
             None => "could not be determined".to_string(),
         };
         template = template.replace("$PERFORMANCE_OUTCOME$", performance_outcome_disp.as_str());
@@ -75,7 +87,7 @@ fn write_baseline_summary_html(
             PermutationTester::new(&stats.durations, &baseline_stats.durations);
         let permutation_outcome = permutation_tester.test(1000, alpha);
         let permutation_outcome_disp = match permutation_outcome {
-            Some(outcome) => outcome.to_html(),
+            Some(outcome) => test_outcome_html(&outcome),
             None => "could not be determined".to_string(),
         };
         template = template.replace(

@@ -1,3 +1,8 @@
+use burl::{
+    stats::{AnalyticTester, NormalParams, PermutationTester, StatsSummary, TestOutcome},
+    StatsConfig,
+};
+
 pub struct StatisticalTester<'a> {
     current_stats: &'a StatsSummary,
     baseline_stats: &'a StatsSummary,
@@ -21,10 +26,10 @@ impl<'a> StatisticalTester<'a> {
     }
 
     fn performance_test(&self, alpha: f64) -> Option<TestOutcome> {
-        let current_durations = self.current_stats.durations;
-        let baseline_durations = self.baseline_stats.durations;
+        let current_durations = &self.current_stats.durations;
+        let baseline_durations = &self.baseline_stats.durations;
 
-        let permutation_tester = PermutationTester::new(&current_durations, &baseline_durations);
+        let permutation_tester = PermutationTester::new(current_durations, baseline_durations);
         let n_samples = self.stats_config.n_bootstrap_samples.unwrap_or(1_000);
         let permutation_outcome = permutation_tester.test(n_samples, alpha);
         permutation_outcome

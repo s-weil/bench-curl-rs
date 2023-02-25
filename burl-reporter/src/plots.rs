@@ -1,5 +1,5 @@
-use crate::stats::StatsSummary;
-use crate::ThreadIdx;
+use burl::stats::StatsSummary;
+use burl::ThreadIdx;
 use plotly::box_plot::{BoxMean, BoxPoints};
 use plotly::common::{Line, LineShape, Marker, Mode, Title};
 use plotly::histogram::{Bins, HistNorm};

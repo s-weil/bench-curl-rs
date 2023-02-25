@@ -1,13 +1,14 @@
 mod config;
 mod errors;
-mod parser;
-mod sampling;
-mod stats;
+
+pub mod parser;
+pub mod sampling;
+pub mod stats;
 
 pub use crate::parser::parse_toml;
 use crate::stats::StatsProcessor;
-pub use config::BenchConfig;
 pub(crate) use config::ConcurrenyLevel;
+pub use config::{BenchConfig, StatsConfig};
 pub use errors::{BurlError, BurlResult};
 
 use chrono::{DateTime, Utc};
@@ -20,7 +21,7 @@ use tokio::time::Instant;
 pub type ThreadIdx = usize;
 
 pub struct RunSummary {
-    stats_processor: StatsProcessor,
+    pub stats_processor: StatsProcessor,
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
 }
@@ -49,7 +50,7 @@ impl<'a> BenchClient<'a> {
     }
 
     // TODO: split into collection of samples and report creation
-    pub async fn start_run(&self) -> Option<RunSummary> {
+    pub async fn run(&self) -> Option<RunSummary> {
         let start_time = Utc::now();
 
         let n_runs = self.config.n_runs();
