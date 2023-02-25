@@ -1,6 +1,3 @@
-mod error;
-mod parser;
-
 extern crate clap;
 
 use crate::parser::{from_get_url, parse_toml};
@@ -18,7 +15,7 @@ enum BenchRunnerArg {
     /// Read in a `specs.toml` file at the specified location `file_path`.
     FromToml,
     Get,
-    // further: Post, AB testing, etc.
+    // TODO: further: Post, AB testing, etc.
 }
 
 /// CLI to run the benchmarker.

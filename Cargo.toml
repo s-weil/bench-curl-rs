@@ -1,7 +1,4 @@
 [workspace]
-members = [
-    "burl",
-    "burl-cli"
-]
+members = ["burl", "burl-reporter", "burl-cli"]
 
 # exclude = ["bench-curl-cli"]

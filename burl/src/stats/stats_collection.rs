@@ -1,9 +1,10 @@
 use super::{
     confidence_interval, normal_qq, percentile, requests_per_sec, standard_deviation,
-    stats::NormalParams, sum, BootstrapSampler,
+    stats::{NormalParams, TestOutcome},
+    sum, AnalyticTester, BootstrapSampler, PermutationTester,
 };
 use crate::{
-    config::DurationScale,
+    config::{DurationScale, StatsConfig},
     sampling::{RequestResult, SampleCollector, SampleResult, StatusCode},
     ThreadIdx,
 };
@@ -25,7 +26,6 @@ pub struct ThreadStats {
     pub n_errors: usize,
 
     pub total_duration: Option<f64>,
-    // pub mean_rps: Option<f64>,
     pub mean: Option<f64>,
     pub max: Option<f64>,
     pub min: Option<f64>,
@@ -182,17 +182,15 @@ pub struct StatsSummary {
     pub std: Option<f64>,
     pub n_ok: usize,
     pub n_errors: usize,
-
-    #[serde(skip_deserializing)]
-    #[serde(skip_serializing)]
-    pub stats_by_thread: HashMap<ThreadIdx, ThreadStats>,
-    /// Percentiles 1% 5% 10% 20% 30% 40% 50% 60% 70% 80% 90% 95% 99%
     pub qq_percentiles: Vec<(f64, f64)>,
-    // TODO: provide overview of errors - tbd if actually interestering or a corner case
-    // TODO: outliers
+
+    pub stats_by_thread: HashMap<ThreadIdx, ThreadStats>,
+
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
     pub errors: HashMap<StatusCode, i32>,
+    // TODO: provide overview of errors - tbd if actually interestering or a corner case
+    // TODO: outliers
 }
 
 const N_PERCENTILES: usize = 20;
@@ -381,5 +379,46 @@ impl StatsSummary {
             BootstrapSampler::new(&self.durations).sample_means(n_draws, n_samples);
         let confidence_interval = confidence_interval(&bootstrap_means, alpha);
         (bootstrap_means, confidence_interval)
+    }
+}
+
+pub struct StatisticalTester<'a> {
+    current_stats: &'a StatsSummary,
+    baseline_stats: &'a StatsSummary,
+    stats_config: &'a StatsConfig,
+}
+
+impl<'a> StatisticalTester<'a> {
+    pub fn try_new(
+        current_stats: &'a StatsSummary,
+        baseline_stats: &'a StatsSummary,
+        stats_config: &'a StatsConfig,
+    ) -> Option<Self> {
+        if current_stats.scale != baseline_stats.scale {
+            return None;
+        }
+        Some(Self {
+            current_stats,
+            baseline_stats,
+            stats_config,
+        })
+    }
+
+    fn performance_test(&self, alpha: f64) -> Option<TestOutcome> {
+        let current_durations = self.current_stats.durations;
+        let baseline_durations = self.baseline_stats.durations;
+
+        let permutation_tester = PermutationTester::new(&current_durations, &baseline_durations);
+        let n_samples = self.stats_config.n_bootstrap_samples.unwrap_or(1_000);
+        let permutation_outcome = permutation_tester.test(n_samples, alpha);
+        permutation_outcome
+    }
+
+    fn analytic_test(&self, alpha: f64) -> Option<TestOutcome> {
+        let current_normal = NormalParams::from(self.current_stats);
+        let baseline_normal = NormalParams::from(self.baseline_stats);
+        let analytic_test = AnalyticTester::new(&baseline_normal, &current_normal);
+        let performance_outcome = analytic_test.test(alpha);
+        performance_outcome
     }
 }

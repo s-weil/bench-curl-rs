@@ -58,6 +58,16 @@ pub struct StatsConfig {
 
 const ALPHA: f64 = 0.05;
 
+// impl Default for StatsConfig {
+//     fn default() -> Self {
+//         Self {
+//             alpha: Some(ALPHA),
+//             n_bootstrap_samples: 1000,
+//             n_bootstrap_draw_size: 100,
+//         }
+//     }
+// }
+
 // TODO: structure into sub types
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct BenchConfig {
@@ -166,4 +176,12 @@ impl BenchConfig {
             .and_then(|scfg| scfg.n_bootstrap_samples)
             .unwrap_or(1_000)
     }
+
+    // pub fn stats_config(&self) -> StatsConfig {
+    //     StatsConfig {
+    //         alpha: self.alpha(),
+    //         n_bootstrap_samples: self.n_bootstrap_samples(),
+    //         n_bootstrap_draw_size: self.n_bootstrap_draw_size(),
+    //     }
+    // }
 }

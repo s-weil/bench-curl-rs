@@ -1,3 +1,4 @@
+mod html_report;
 mod plots;
 mod report;
 
