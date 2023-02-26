@@ -45,12 +45,12 @@ impl From<&SampleCollector> for ThreadStats {
 
         for result in samples.results.iter() {
             match result {
-                RequestResult::Ok(duration_point) => {
-                    sample_results.push(duration_point);
-                    durations.push(duration_point.duration);
-                    max = max.max(duration_point.duration);
-                    min = min.min(duration_point.duration);
-                    if let Some(bytes) = duration_point.content_length {
+                RequestResult::Ok(sample) => {
+                    sample_results.push(sample);
+                    durations.push(sample.duration);
+                    max = max.max(sample.duration);
+                    min = min.min(sample.duration);
+                    if let Some(bytes) = sample.content_length {
                         total_bytes += bytes;
                     }
                     n_ok += 1;

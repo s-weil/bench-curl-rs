@@ -70,7 +70,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 info!("{}", stats);
             }
 
-            let report_summary = burl_reporter::ReportSummary::new(
+            let report_summary = burl_reporter::ReportFactory::new(
                 run_summary.start_time,
                 run_summary.end_time,
                 &specs,

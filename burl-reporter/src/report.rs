@@ -26,8 +26,8 @@ struct ReportMeta {
     config: BenchConfig,
 }
 
-impl<'a> From<&ReportSummary<'a>> for ReportMeta {
-    fn from(rs: &ReportSummary<'a>) -> Self {
+impl<'a> From<&ReportFactory<'a>> for ReportMeta {
+    fn from(rs: &ReportFactory<'a>) -> Self {
         Self {
             start_time: format!("{}", rs.start_time.format(FORMAT)),
             end_time: format!("{}", rs.end_time.format(FORMAT)),
@@ -110,21 +110,18 @@ fn write_or_update<D: Serialize>(serializable_data: &D, file: PathBuf) -> BurlRe
     Ok(())
 }
 
-// TODO: rename ReportSummary to Factory?
-
-pub struct ReportSummary<'a> {
+pub struct ReportFactory<'a> {
     config: &'a BenchConfig,
     stats_processor: StatsProcessor,
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
 }
 
-impl<'a> ReportSummary<'a> {
+impl<'a> ReportFactory<'a> {
     pub fn new(
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         config: &'a BenchConfig,
-
         stats_processor: StatsProcessor,
     ) -> Self {
         Self {
@@ -199,10 +196,16 @@ impl<'a> ReportSummary<'a> {
         if let Some(stats) = current_stats {
             if let Some(dir) = &components_dir {
                 let file = dir.join("summary.html");
-                if let Some(bl_stats) = baseline_stats {
-                    write_baseline_summary_html(stats, &bl_stats, self.config.alpha(), file)?;
 
-                    let baseline_qq_curve = bl_stats.normal_qq_curve();
+                if let Some(baseline_stats) = baseline_stats {
+                    write_baseline_summary_html(
+                        stats,
+                        &baseline_stats,
+                        self.config.n_bootstrap_samples(),
+                        self.config.alpha(),
+                        file,
+                    )?;
+                    let baseline_qq_curve = baseline_stats.normal_qq_curve();
                     let qq_curve = stats.normal_qq_curve();
                     plot_qq_curve(&qq_curve, Some(&baseline_qq_curve), &components_dir);
                 } else {

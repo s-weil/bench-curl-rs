@@ -58,15 +58,15 @@ pub struct StatsConfig {
 
 const ALPHA: f64 = 0.05;
 
-// impl Default for StatsConfig {
-//     fn default() -> Self {
-//         Self {
-//             alpha: Some(ALPHA),
-//             n_bootstrap_samples: 1000,
-//             n_bootstrap_draw_size: 100,
-//         }
-//     }
-// }
+impl Default for StatsConfig {
+    fn default() -> Self {
+        Self {
+            alpha: Some(ALPHA),
+            n_bootstrap_samples: Some(1_000),
+            n_bootstrap_draw_size: Some(100),
+        }
+    }
+}
 
 // TODO: structure into sub types
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
