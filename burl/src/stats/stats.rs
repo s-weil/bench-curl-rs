@@ -331,6 +331,10 @@ impl<'a> PermutationTester<'a> {
     }
 }
 
+pub trait SignificanceTest {
+    fn test(&self, alpha: Probablity) -> Option<TestOutcome>;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

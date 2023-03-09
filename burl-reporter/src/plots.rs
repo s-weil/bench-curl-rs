@@ -1,4 +1,5 @@
-use burl::stats::StatsSummary;
+use crate::{ComponentBuilder, ComponentCreator, ComponentWriter};
+use burl::stats::{StatsSummary, ThreadStats};
 use burl::ThreadIdx;
 use plotly::box_plot::{BoxMean, BoxPoints};
 use plotly::common::{Line, LineShape, Marker, Mode, Title};
@@ -6,7 +7,15 @@ use plotly::histogram::{Bins, HistNorm};
 use plotly::layout::{Axis, BarMode};
 use plotly::{BoxPlot, Histogram, Layout, NamedColor, Plot, Rgb, Scatter};
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::path::PathBuf;
+
+impl ComponentWriter for Plot {
+    fn write(&self, file: PathBuf) -> burl::BurlResult<()> {
+        self.to_html(file);
+        Ok(())
+    }
+}
 
 /// https://github.com/igiagkiozis/plotly/blob/master/examples/statistical_charts/src/main.rs///
 /// https://igiagkiozis.github.io/plotly/content/recipes/statistical_charts/box_plots.html
@@ -19,31 +28,70 @@ fn rgb_color(thread_idx: usize, n_threads: usize) -> Rgb {
     Rgb::new(scale, min as u8, scale)
 }
 
-pub fn plot_box_plot(stats: &StatsSummary, output_path: &Option<PathBuf>) {
-    let mut plot = Plot::new();
+pub struct BoxPlotComponent {
+    plot: Plot, // durations: &'a [f64],
+                // stats_by_thread: &'a Hashmap<ThreadIdx, ThreadStats>,
+}
 
-    let layout = Layout::new()
-        .title(Title::new("Durations box plot"))
-        .y_axis(
-            Axis::new()
-                .title(Title::new("durations"))
-                .show_grid(true)
-                .zero_line(true)
-                .grid_width(1)
-                .zero_line_width(2),
-        );
+impl Deref for BoxPlotComponent {
+    type Target = Plot;
+    fn deref(&self) -> &Self::Target {
+        &self.plot
+    }
+}
 
-    let trace_durations_box_plot = BoxPlot::new(stats.durations.clone())
-        .name("total")
-        .jitter(0.7)
-        .marker(Marker::new().color(Rgb::new(7, 40, 89)).size(6))
-        .box_mean(BoxMean::StandardDeviation)
-        .box_points(BoxPoints::All)
-        .line(Line::new().width(2.0));
+impl ComponentCreator for BoxPlotComponent {
+    type Content = StatsSummary;
+    fn init() -> Self {
+        let mut box_plot = BoxPlotComponent { plot: Plot::new() };
+        box_plot.set_layout();
+        box_plot
+    }
 
-    if stats.stats_by_thread.len() > 1 {
-        for (thread_idx, thread_stats) in stats.stats_by_thread.iter() {
-            let thread_color = rgb_color(*thread_idx, stats.stats_by_thread.len());
+    fn add(&mut self, content: &Self::Content) {
+        self.add_total(&content.durations);
+        if content.stats_by_thread.len() > 1 {
+            self.add_threads(&content.stats_by_thread);
+        }
+    }
+}
+
+// impl GraphComponent for BoxPlotComponent {
+//     fn set_layout(&mut self) {
+//         self.set_layout()
+//     }
+// }
+
+impl BoxPlotComponent {
+    fn set_layout(&mut self) {
+        let layout = Layout::new()
+            .title(Title::new("Durations box plot"))
+            .y_axis(
+                Axis::new()
+                    .title(Title::new("durations"))
+                    .show_grid(true)
+                    .zero_line(true)
+                    .grid_width(1)
+                    .zero_line_width(2),
+            );
+        self.plot.set_layout(layout);
+    }
+
+    fn add_total(&mut self, durations: &Vec<f64>) {
+        let trace_durations_box_plot = BoxPlot::new(durations.clone())
+            .name("total")
+            .jitter(0.7)
+            .marker(Marker::new().color(Rgb::new(7, 40, 89)).size(6))
+            .box_mean(BoxMean::StandardDeviation)
+            .box_points(BoxPoints::All)
+            .line(Line::new().width(2.0));
+
+        self.plot.add_trace(trace_durations_box_plot);
+    }
+
+    fn add_threads(&mut self, stats_by_thread: &HashMap<ThreadIdx, ThreadStats>) {
+        for (thread_idx, thread_stats) in stats_by_thread.iter() {
+            let thread_color = rgb_color(*thread_idx, stats_by_thread.len());
             let thread_durations_box_plot = BoxPlot::new(thread_stats.durations.clone())
                 .name(thread_idx.to_string().as_str())
                 .jitter(0.7)
@@ -52,68 +100,193 @@ pub fn plot_box_plot(stats: &StatsSummary, output_path: &Option<PathBuf>) {
                 .box_points(BoxPoints::All)
                 .line(Line::new().width(2.0));
 
-            plot.add_trace(thread_durations_box_plot);
+            self.plot.add_trace(thread_durations_box_plot);
         }
-    }
-
-    plot.set_layout(layout);
-    plot.add_trace(trace_durations_box_plot);
-
-    if let Some(path) = output_path {
-        let file_name = path.join("durations_distribution.html");
-        plot.to_html(file_name);
-    } else {
-        plot.show();
     }
 }
 
-pub fn plot_histogram(stats: &StatsSummary, output_path: &Option<PathBuf>) {
-    let mut plot = Plot::new();
+// pub fn plot_box_plot(
+//     durations: &[f64],
+//     stats_by_thread: &'a Hashmap<ThreadIdx, ThreadStats>,
+//     output_path: &Option<PathBuf>,
+// ) {
+//     let mut plot = Plot::new();
 
-    let layout = Layout::new()
-        .bar_mode(BarMode::Overlay)
-        .title(Title::new("Durations frequency distribution"))
-        .x_axis(Axis::new().title(Title::new("durations")).zero_line(true))
-        .y_axis(Axis::new().title(Title::new("frequency")).zero_line(true));
-    plot.set_layout(layout);
+//     let layout = Layout::new()
+//         .title(Title::new("Durations box plot"))
+//         .y_axis(
+//             Axis::new()
+//                 .title(Title::new("durations"))
+//                 .show_grid(true)
+//                 .zero_line(true)
+//                 .grid_width(1)
+//                 .zero_line_width(2),
+//         );
 
-    // TODO: consider to split total and thread histograms, the latter being stacked
+//     let trace_durations_box_plot = BoxPlot::new(stats.durations.clone())
+//         .name("total")
+//         .jitter(0.7)
+//         .marker(Marker::new().color(Rgb::new(7, 40, 89)).size(6))
+//         .box_mean(BoxMean::StandardDeviation)
+//         .box_points(BoxPoints::All)
+//         .line(Line::new().width(2.0));
 
-    let n_buckets = 30;
-    let bins = Bins::new(
-        stats.min,
-        stats.max,
-        (stats.max - stats.min) / n_buckets as f64,
-    );
+//     if stats.stats_by_thread.len() > 1 {
+//         for (thread_idx, thread_stats) in stats.stats_by_thread.iter() {
+//             let thread_color = rgb_color(*thread_idx, stats.stats_by_thread.len());
+//             let thread_durations_box_plot = BoxPlot::new(thread_stats.durations.clone())
+//                 .name(thread_idx.to_string().as_str())
+//                 .jitter(0.7)
+//                 .marker(Marker::new().color(thread_color).size(6))
+//                 .box_mean(BoxMean::StandardDeviation)
+//                 .box_points(BoxPoints::All)
+//                 .line(Line::new().width(2.0));
 
-    let total_histogram = Histogram::new(stats.durations.clone())
-        .hist_norm(HistNorm::Probability)
-        .name("total")
-        .marker(Marker::new().color(NamedColor::Blue))
-        .x_bins(bins.clone());
+//             plot.add_trace(thread_durations_box_plot);
+//         }
+//     }
 
-    plot.add_trace(total_histogram);
+//     plot.set_layout(layout);
+//     plot.add_trace(trace_durations_box_plot);
 
-    if stats.stats_by_thread.len() > 1 {
-        for (thread_idx, thread_stats) in stats.stats_by_thread.iter() {
-            let thread_color = rgb_color(*thread_idx, stats.stats_by_thread.len());
+//     if let Some(path) = output_path {
+//         let file_name = path.join("durations_distribution.html");
+//         plot.to_html(file_name);
+//     } else {
+//         plot.show();
+//     }
+// }
+
+pub struct HistogramComponent {
+    plot: Plot,
+}
+
+impl HistogramComponent {
+    pub fn new() -> Self {
+        let mut histogram = HistogramComponent { plot: Plot::new() };
+        histogram.set_layout();
+        histogram
+    }
+
+    fn set_layout(&mut self) {
+        let layout = Layout::new()
+            .bar_mode(BarMode::Overlay)
+            .title(Title::new("Durations frequency distribution"))
+            .x_axis(Axis::new().title(Title::new("durations")).zero_line(true))
+            .y_axis(Axis::new().title(Title::new("frequency")).zero_line(true));
+        self.plot.set_layout(layout);
+    }
+
+    fn bins(&self, stats: &StatsSummary) -> Bins {
+        let n_buckets = 30;
+        let bins = Bins::new(
+            stats.min,
+            stats.max,
+            (stats.max - stats.min) / n_buckets as f64,
+        );
+        bins
+    }
+
+    fn add_total(&mut self, durations: &Vec<f64>, bins: &Bins) {
+        let total_histogram = Histogram::new(durations.clone())
+            .hist_norm(HistNorm::Probability)
+            .name("total")
+            .marker(Marker::new().color(NamedColor::Blue))
+            .x_bins(bins.clone());
+
+        self.plot.add_trace(total_histogram);
+    }
+
+    fn add_threads(&mut self, stats_by_thread: &HashMap<ThreadIdx, ThreadStats>, bins: &Bins) {
+        for (thread_idx, thread_stats) in stats_by_thread.iter() {
+            let thread_color = rgb_color(*thread_idx, stats_by_thread.len());
             let thread_hist = Histogram::new(thread_stats.durations.clone())
                 .name(thread_idx.to_string().as_str())
                 .hist_norm(HistNorm::Probability)
                 .opacity(0.5)
                 .marker(Marker::new().color(thread_color))
                 .x_bins(bins.clone());
-            plot.add_trace(thread_hist)
+            self.plot.add_trace(thread_hist);
         }
     }
+}
 
-    if let Some(path) = output_path {
-        let file_name = path.join("durations_histogram.html");
-        plot.to_html(file_name);
-    } else {
-        plot.show();
+impl Deref for HistogramComponent {
+    type Target = Plot;
+    fn deref(&self) -> &Self::Target {
+        &self.plot
     }
 }
+
+type Durations = Vec<f64>;
+impl ComponentBuilder<Durations> for HistogramComponent {
+    fn add(&self, content: &Durations) -> Self {}
+}
+
+impl ComponentCreator for HistogramComponent {
+    type Content = StatsSummary;
+    fn init() -> Self {
+        let mut histogram = HistogramComponent { plot: Plot::new() };
+        histogram.set_layout();
+        histogram
+    }
+
+    fn add(&mut self, content: &Self::Content) {
+        let bins = self.bins(&content);
+        self.add_total(&content.durations, &bins);
+        if content.stats_by_thread.len() > 1 {
+            self.add_threads(&content.stats_by_thread, &bins);
+        }
+    }
+}
+
+// pub fn plot_histogram(stats: &StatsSummary, output_path: &Option<PathBuf>) {
+//     let mut plot = Plot::new();
+
+//     let layout = Layout::new()
+//         .bar_mode(BarMode::Overlay)
+//         .title(Title::new("Durations frequency distribution"))
+//         .x_axis(Axis::new().title(Title::new("durations")).zero_line(true))
+//         .y_axis(Axis::new().title(Title::new("frequency")).zero_line(true));
+//     plot.set_layout(layout);
+
+//     // TODO: consider to split total and thread histograms, the latter being stacked
+
+//     let n_buckets = 30;
+//     let bins = Bins::new(
+//         stats.min,
+//         stats.max,
+//         (stats.max - stats.min) / n_buckets as f64,
+//     );
+
+//     let total_histogram = Histogram::new(stats.durations.clone())
+//         .hist_norm(HistNorm::Probability)
+//         .name("total")
+//         .marker(Marker::new().color(NamedColor::Blue))
+//         .x_bins(bins.clone());
+
+//     plot.add_trace(total_histogram);
+
+//     if stats.stats_by_thread.len() > 1 {
+//         for (thread_idx, thread_stats) in stats.stats_by_thread.iter() {
+//             let thread_color = rgb_color(*thread_idx, stats.stats_by_thread.len());
+//             let thread_hist = Histogram::new(thread_stats.durations.clone())
+//                 .name(thread_idx.to_string().as_str())
+//                 .hist_norm(HistNorm::Probability)
+//                 .opacity(0.5)
+//                 .marker(Marker::new().color(thread_color))
+//                 .x_bins(bins.clone());
+//             plot.add_trace(thread_hist)
+//         }
+//     }
+
+//     if let Some(path) = output_path {
+//         let file_name = path.join("durations_histogram.html");
+//         plot.to_html(file_name);
+//     } else {
+//         plot.show();
+//     }
+// }
 
 // TOOD: extract histogram logic and re-use it above
 pub fn plot_bs_histogram(
