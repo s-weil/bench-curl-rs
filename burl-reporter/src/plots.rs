@@ -1,5 +1,5 @@
-use crate::{ComponentBuilder, ComponentWriter};
-use burl::stats::{StatsSummary, ThreadStats};
+use crate::{ComponentWriter};
+use burl::stats::{ThreadStats};
 use burl::ThreadIdx;
 use plotly::box_plot::{BoxMean, BoxPoints};
 use plotly::common::{Line, LineShape, Marker, Mode, Title};
@@ -8,7 +8,7 @@ use plotly::layout::{Axis, BarMode};
 use plotly::{BoxPlot, Histogram, Layout, NamedColor, Plot, Rgb, Scatter};
 use std::collections::HashMap;
 use std::ops::Deref;
-use std::path::PathBuf;
+use std::path::{Path};
 
 // impl ComponentWriter for Plot {
 //     fn write(&self, file: PathBuf) -> burl::BurlResult<()> {
@@ -20,14 +20,14 @@ use std::path::PathBuf;
 /// NOTE: due to the orphan rule, we need this wrapper `GraphComponent`
 /// for implementing ComponentWriter generically with trait bounds
 /// rather than implementing it directly for T : AsRef<Plot>
-pub trait GraphComponent: Deref<Target = Plot> {}
-impl<T> GraphComponent for T where T: Deref<Target = Plot> {}
+pub trait PlotComponent: Deref<Target = Plot> {}
+impl<T> PlotComponent for T where T: Deref<Target = Plot> {}
 
 impl<T> ComponentWriter for T
 where
-    T: GraphComponent,
+    T: PlotComponent,
 {
-    fn write(&self, file: PathBuf) -> burl::BurlResult<()> {
+    fn write(&self, file: &Path) -> burl::BurlResult<()> {
         self.deref().to_html(file);
         Ok(())
     }
@@ -140,11 +140,15 @@ impl BoxPlotComponent {
 
 pub struct HistogramComponent {
     plot: Plot,
+    bins: Option<Bins>,
 }
 
 impl HistogramComponent {
     pub fn new() -> Self {
-        let mut histogram = HistogramComponent { plot: Plot::new() };
+        let mut histogram = HistogramComponent {
+            plot: Plot::new(),
+            bins: None,
+        };
         histogram.set_layout();
         histogram
     }
@@ -158,32 +162,39 @@ impl HistogramComponent {
         self.plot.set_layout(layout);
     }
 
-    fn bins(&self, min: f64, max: f64) -> Bins {
+    pub fn set_bins(&mut self, min: f64, max: f64) {
         let n_buckets = 30;
         let bins = Bins::new(min, max, (max - min) / n_buckets as f64);
-        bins
+        self.bins = Some(bins)
     }
 
-    pub fn add_total(&mut self, durations: &Vec<f64>, bins: &Bins) {
+    pub fn add_total(&mut self, durations: &Vec<f64>) {
         let total_histogram = Histogram::new(durations.clone())
             .hist_norm(HistNorm::Probability)
             .name("total")
-            .marker(Marker::new().color(NamedColor::Blue))
-            .x_bins(bins.clone());
+            .marker(Marker::new().color(NamedColor::Blue));
 
-        self.plot.add_trace(total_histogram);
+        if let Some(bins) = &self.bins {
+            self.plot.add_trace(total_histogram.x_bins(bins.clone()));
+        } else {
+            self.plot.add_trace(total_histogram);
+        }
     }
 
-    pub fn add_threads(&mut self, stats_by_thread: &HashMap<ThreadIdx, ThreadStats>, bins: &Bins) {
+    pub fn add_threads(&mut self, stats_by_thread: &HashMap<ThreadIdx, ThreadStats>) {
         for (thread_idx, thread_stats) in stats_by_thread.iter() {
             let thread_color = rgb_color(*thread_idx, stats_by_thread.len());
             let thread_hist = Histogram::new(thread_stats.durations.clone())
                 .name(thread_idx.to_string().as_str())
                 .hist_norm(HistNorm::Probability)
                 .opacity(0.5)
-                .marker(Marker::new().color(thread_color))
-                .x_bins(bins.clone());
-            self.plot.add_trace(thread_hist);
+                .marker(Marker::new().color(thread_color));
+
+            if let Some(bins) = &self.bins {
+                self.plot.add_trace(thread_hist.x_bins(bins.clone()));
+            } else {
+                self.plot.add_trace(thread_hist);
+            }
         }
     }
 }
@@ -374,12 +385,6 @@ impl QQPlotComponent {
         }
 
         self.reference_line.extend(x_percentiles.iter());
-        // the 45° line
-        // let reference_trace = Scatter::new(x_percentiles.clone(), x_percentiles.clone())
-        //     .mode(Mode::Lines)
-        //     .name("")
-        //     .marker(Marker::new().color(Rgb::new(0, 200, 0)));
-        // plot.add_trace(reference_trace);
 
         let baseline_qq_trace = Scatter::new(x_percentiles.clone(), y_percentiles)
             .mode(Mode::Markers)
@@ -388,7 +393,7 @@ impl QQPlotComponent {
         self.plot.add_trace(baseline_qq_trace);
     }
 
-    fn add_reference_line(&mut self) {
+    pub fn add_reference_line(&mut self) {
         // the 45° line
         let reference_trace =
             Scatter::new(self.reference_line.clone(), self.reference_line.clone())

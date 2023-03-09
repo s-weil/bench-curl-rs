@@ -11,7 +11,7 @@ use log::warn;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Display};
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct ThreadStats {
     #[serde(skip_deserializing)]
     #[serde(skip_serializing)] // serialize or not?
@@ -163,7 +163,7 @@ impl StatsProcessor {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StatsSummary {
     pub durations: Vec<f64>,
 

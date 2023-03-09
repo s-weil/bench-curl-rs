@@ -3,10 +3,9 @@ mod plots;
 mod report;
 mod stats_helpers;
 
-use std::path::PathBuf;
+use std::path::Path;
 
 use burl::BurlResult;
-pub(crate) use html_report::{write_baseline_summary_html, write_summary_html};
 pub use report::ReportFactory;
 
 // pub trait ComponentCreator {
@@ -19,5 +18,5 @@ pub trait ComponentBuilder<Content> {
 }
 
 pub trait ComponentWriter {
-    fn write(&self, file: PathBuf) -> BurlResult<()>;
+    fn write(&self, file: &Path) -> BurlResult<()>;
 }

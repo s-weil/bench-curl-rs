@@ -1,16 +1,15 @@
+use crate::html_report::SummaryComponent;
 use crate::plots::{
-    plot_box_plot, plot_bs_histogram, plot_histogram, plot_qq_curve, plot_time_series,
     BootstrapHistogramComponent, BoxPlotComponent, HistogramComponent, QQPlotComponent,
     TimeSeriesComponent,
 };
-use crate::{write_baseline_summary_html, write_summary_html, ComponentWriter};
+use crate::ComponentWriter;
 use burl::sampling::SampleResult;
 use burl::stats::{StatsProcessor, StatsSummary};
 use burl::{BenchClientConfig, BurlError, BurlResult, ThreadIdx};
 use chrono::{DateTime, Utc};
 use log::{info, warn};
 use serde::Serialize;
-use std::ops::Deref;
 use std::{
     collections::HashMap,
     fs,
@@ -196,6 +195,14 @@ impl<'a> ReportFactory<'a> {
         baseline_stats: Option<StatsSummary>,
         sample_results_by_thread: &HashMap<ThreadIdx, Vec<SampleResult>>,
     ) -> BurlResult<()> {
+        let stats = match current_stats {
+            Some(stats) => stats,
+            None => {
+                return Ok(());
+            }
+        };
+
+        let mut summary = SummaryComponent::new();
         let mut box_plot = BoxPlotComponent::new();
         let mut time_series_plot = TimeSeriesComponent::new();
         let mut histogram = HistogramComponent::new();
@@ -215,97 +222,50 @@ impl<'a> ReportFactory<'a> {
 
         time_series_plot.add(&time_series);
 
-        if let Some(stats) = current_stats {
-            box_plot.add_total(&stats.durations);
-            histogram.add_total(&stats.durations, bins);
-            qq_plot.add_current(&stats.normal_qq_curve());
+        summary.add_current(&stats);
+        box_plot.add_total(&stats.durations);
+        histogram.set_bins(stats.min, stats.max);
+        histogram.add_total(&stats.durations);
+        qq_plot.add_current(&stats.normal_qq_curve());
 
-            if stats.stats_by_thread.len() > 1 {
-                box_plot.add_threads(&stats.stats_by_thread);
-                histogram.add_threads(&stats.stats_by_thread, bins);
-            }
-
-            if let (bootstrap_means, Some((lower_bound, upper_bound))) = stats.bootstrap_summary(
-                self.config.n_bootstrap_draw_size(),
-                self.config.n_bootstrap_samples(),
-                self.config.alpha(),
-            ) {
-                bs_histogram.add_total(&bootstrap_means);
-                bs_histogram.add_confidence_interval(lower_bound, upper_bound);
-            }
-        }
-        // else, early return?
-
-        if let Some(stats) = baseline_stats {
-            qq_plot.add_baseline(&stats.normal_qq_curve());
+        if stats.stats_by_thread.len() > 1 {
+            box_plot.add_threads(&stats.stats_by_thread);
+            histogram.add_threads(&stats.stats_by_thread);
         }
 
-        match components_dir {
+        if let (bootstrap_means, Some((lower_bound, upper_bound))) = stats.bootstrap_summary(
+            self.config.n_bootstrap_draw_size(),
+            self.config.n_bootstrap_samples(),
+            self.config.alpha(),
+        ) {
+            bs_histogram.add_total(&bootstrap_means);
+            bs_histogram.add_confidence_interval(lower_bound, upper_bound);
+        }
+
+        if let Some(bl_stats) = baseline_stats {
+            qq_plot.add_baseline(&bl_stats.normal_qq_curve());
+            summary.add_baseline(bl_stats.clone());
+        }
+
+        summary.compile(self.config.alpha(), self.config.n_bootstrap_samples());
+        qq_plot.add_reference_line();
+
+        match &components_dir {
             Some(dir) => {
-                &box_plot.write(dir)?;
-                &time_series_plot.write(dir)?;
-                &histogram.write(dir)?;
-                &qq_plot.write(dir)?;
-                &bs_histogram.write(dir)?;
+                summary.write(&dir.join("summary.html"))?;
+                box_plot.write(&dir.join("durations_distribution.html"))?;
+                time_series_plot.write(&dir.join("durations_timeseries.html"))?;
+                histogram.write(&dir.join("durations_histogram.html"))?;
+                qq_plot.write(&dir.join("qq_plot.html"))?;
+                bs_histogram.write(&dir.join("bootstrap_histogram.html"))?;
             }
             None => {
-                &box_plot.show();
-                &time_series_plot.show();
-                &histogram.show();
+                box_plot.show();
+                time_series_plot.show();
+                histogram.show();
             }
         }
 
-        /*
-
-        if let Some(stats) = current_stats {
-
-            box_plot.add_total(&stats.durations);
-
-            if let Some(dir) = &components_dir {
-                let file = dir.join("summary.html");
-
-                if let Some(baseline_stats) = baseline_stats {
-                    write_baseline_summary_html(
-                        stats,
-                        &baseline_stats,
-                        self.config.n_bootstrap_samples(),
-                        self.config.alpha(),
-                        file,
-                    )?;
-                    let baseline_qq_curve = baseline_stats.normal_qq_curve();
-                    let qq_curve = stats.normal_qq_curve();
-                    plot_qq_curve(&qq_curve, Some(&baseline_qq_curve), &components_dir);
-                } else {
-                    write_summary_html(stats, file)?;
-                    let qq_curve = stats.normal_qq_curve();
-                    plot_qq_curve(&qq_curve, None, &components_dir);
-                }
-            }
-
-            plot_histogram(stats, &components_dir);
-            // plot_box_plot(stats, &components_dir);
-
-            if let (bootstrap_means, Some((lb, ub))) = stats.bootstrap_summary(
-                self.config.n_bootstrap_draw_size(),
-                self.config.n_bootstrap_samples(),
-                self.config.alpha(),
-            ) {
-                plot_bs_histogram(&bootstrap_means, (lb, ub), &components_dir);
-            }
-        }
-
-        // let time_series = sample_results_by_thread
-        //     .iter()
-        //     .map(|(thread_idx, sample_results)| {
-        //         let ts = sample_results
-        //             .iter()
-        //             .map(|sr| sr.as_timeseries_point())
-        //             .collect();
-        //         (*thread_idx, ts)
-        //     })
-        //     .collect();
-        // plot_time_series(&time_series, &components_dir);
-        */
         Ok(())
     }
 
@@ -383,9 +343,9 @@ impl<'a> ReportFactory<'a> {
 //     }
 // }
 
-pub struct SummaryComponent {
-    template_ref: &'static str,
-}
+// pub struct SummaryComponent {
+//     template_ref: &'static str,
+// }
 
 // pub trait PlotlyComponent: ReportComponent {
 //     // fn write(&self, resource: &plotly::Plot, file: PathBuf) -> BurlResult<()> {
