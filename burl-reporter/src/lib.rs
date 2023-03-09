@@ -15,7 +15,7 @@ pub use report::ReportFactory;
 // }
 
 pub trait ComponentBuilder<Content> {
-    fn add(&self, content: &Content) -> Self;
+    fn add(&self, content: &Content) -> &Self;
 }
 
 pub trait ComponentWriter {

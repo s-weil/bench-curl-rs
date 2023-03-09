@@ -1,7 +1,9 @@
 use crate::plots::{
     plot_box_plot, plot_bs_histogram, plot_histogram, plot_qq_curve, plot_time_series,
+    BootstrapHistogramComponent, BoxPlotComponent, HistogramComponent, QQPlotComponent,
+    TimeSeriesComponent,
 };
-use crate::{write_baseline_summary_html, write_summary_html};
+use crate::{write_baseline_summary_html, write_summary_html, ComponentWriter};
 use burl::sampling::SampleResult;
 use burl::stats::{StatsProcessor, StatsSummary};
 use burl::{BenchClientConfig, BurlError, BurlResult, ThreadIdx};
@@ -190,11 +192,75 @@ impl<'a> ReportFactory<'a> {
     fn create_components(
         &self,
         components_dir: Option<PathBuf>,
-        baseline_stats: Option<StatsSummary>,
         current_stats: &Option<StatsSummary>,
+        baseline_stats: Option<StatsSummary>,
         sample_results_by_thread: &HashMap<ThreadIdx, Vec<SampleResult>>,
     ) -> BurlResult<()> {
+        let mut box_plot = BoxPlotComponent::new();
+        let mut time_series_plot = TimeSeriesComponent::new();
+        let mut histogram = HistogramComponent::new();
+        let mut qq_plot = QQPlotComponent::new();
+        let mut bs_histogram = BootstrapHistogramComponent::new();
+
+        let time_series = sample_results_by_thread
+            .iter()
+            .map(|(thread_idx, sample_results)| {
+                let ts = sample_results
+                    .iter()
+                    .map(|sr| sr.as_timeseries_point())
+                    .collect();
+                (*thread_idx, ts)
+            })
+            .collect();
+
+        time_series_plot.add(&time_series);
+
         if let Some(stats) = current_stats {
+            box_plot.add_total(&stats.durations);
+            histogram.add_total(&stats.durations, bins);
+            qq_plot.add_current(&stats.normal_qq_curve());
+
+            if stats.stats_by_thread.len() > 1 {
+                box_plot.add_threads(&stats.stats_by_thread);
+                histogram.add_threads(&stats.stats_by_thread, bins);
+            }
+
+            if let (bootstrap_means, Some((lower_bound, upper_bound))) = stats.bootstrap_summary(
+                self.config.n_bootstrap_draw_size(),
+                self.config.n_bootstrap_samples(),
+                self.config.alpha(),
+            ) {
+                bs_histogram.add_total(&bootstrap_means);
+                bs_histogram.add_confidence_interval(lower_bound, upper_bound);
+            }
+        }
+        // else, early return?
+
+        if let Some(stats) = baseline_stats {
+            qq_plot.add_baseline(&stats.normal_qq_curve());
+        }
+
+        match components_dir {
+            Some(dir) => {
+                &box_plot.write(dir)?;
+                &time_series_plot.write(dir)?;
+                &histogram.write(dir)?;
+                &qq_plot.write(dir)?;
+                &bs_histogram.write(dir)?;
+            }
+            None => {
+                &box_plot.show();
+                &time_series_plot.show();
+                &histogram.show();
+            }
+        }
+
+        /*
+
+        if let Some(stats) = current_stats {
+
+            box_plot.add_total(&stats.durations);
+
             if let Some(dir) = &components_dir {
                 let file = dir.join("summary.html");
 
@@ -215,8 +281,9 @@ impl<'a> ReportFactory<'a> {
                     plot_qq_curve(&qq_curve, None, &components_dir);
                 }
             }
+
             plot_histogram(stats, &components_dir);
-            plot_box_plot(stats, &components_dir);
+            // plot_box_plot(stats, &components_dir);
 
             if let (bootstrap_means, Some((lb, ub))) = stats.bootstrap_summary(
                 self.config.n_bootstrap_draw_size(),
@@ -227,17 +294,18 @@ impl<'a> ReportFactory<'a> {
             }
         }
 
-        let time_series = sample_results_by_thread
-            .iter()
-            .map(|(thread_idx, sample_results)| {
-                let ts = sample_results
-                    .iter()
-                    .map(|sr| sr.as_timeseries_point())
-                    .collect();
-                (*thread_idx, ts)
-            })
-            .collect();
-        plot_time_series(&time_series, &components_dir);
+        // let time_series = sample_results_by_thread
+        //     .iter()
+        //     .map(|(thread_idx, sample_results)| {
+        //         let ts = sample_results
+        //             .iter()
+        //             .map(|sr| sr.as_timeseries_point())
+        //             .collect();
+        //         (*thread_idx, ts)
+        //     })
+        //     .collect();
+        // plot_time_series(&time_series, &components_dir);
+        */
         Ok(())
     }
 
@@ -253,12 +321,12 @@ impl<'a> ReportFactory<'a> {
             self.dump_data(data_dir, &current_results, &sample_results_by_thread)?;
             self.create_components(
                 Some(components_dir),
-                baseline_results,
                 &current_results,
+                baseline_results,
                 &sample_results_by_thread,
             )?;
         } else {
-            self.create_components(None, None, &current_results, &sample_results_by_thread)?;
+            self.create_components(None, &current_results, None, &sample_results_by_thread)?;
         }
 
         Ok(())
