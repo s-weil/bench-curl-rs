@@ -70,7 +70,8 @@ impl Default for StatsConfig {
 
 // TODO: structure into sub types
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
-pub struct BenchConfig {
+pub struct BenchClientConfig {
+    // request part
     pub url: String,
     pub method: Method,
     #[serde(alias = "disableCertificateValidation")]
@@ -88,6 +89,7 @@ pub struct BenchConfig {
     #[serde(alias = "bearerToken")]
     pub bearer_token: Option<String>,
 
+    // Benchmarking
     #[serde(alias = "durationScale")]
     duration_scale: Option<DurationScale>,
 
@@ -97,10 +99,10 @@ pub struct BenchConfig {
     #[serde(alias = "numberWarmupRuns")]
     #[serde(alias = "nWarmupRuns")]
     n_warmup_runs: Option<usize>,
-
     #[serde(alias = "concurrencyLevel")]
     concurrency_level: Option<usize>,
 
+    // Stats / reports
     #[serde(alias = "reportDirectory")]
     pub report_directory: Option<String>,
     #[serde(alias = "baselinePath")]
@@ -117,7 +119,7 @@ pub struct BenchConfig {
 
 const DEFAULT_NRUNS: usize = 300;
 
-impl BenchConfig {
+impl BenchClientConfig {
     pub fn new(url: String) -> Self {
         Self {
             url,

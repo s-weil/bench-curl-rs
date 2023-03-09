@@ -8,7 +8,7 @@ pub mod stats;
 pub use crate::parser::parse_toml;
 use crate::stats::StatsProcessor;
 pub(crate) use config::ConcurrenyLevel;
-pub use config::{BenchConfig, StatsConfig};
+pub use config::{BenchClientConfig, StatsConfig};
 pub use errors::{BurlError, BurlResult};
 
 use chrono::{DateTime, Utc};
@@ -34,11 +34,11 @@ impl RunSummary {
 
 pub struct BenchClient<'a> {
     request_factory: RequestFactory,
-    config: &'a BenchConfig,
+    config: &'a BenchClientConfig,
 }
 
 impl<'a> BenchClient<'a> {
-    pub fn init(config: &'a BenchConfig) -> Result<Self, String> {
+    pub fn init(config: &'a BenchClientConfig) -> Result<Self, String> {
         let request_factory =
             RequestFactory::new(config.disable_certificate_validation.unwrap_or_default())
                 .map_err(|err| format!("Could not initialize client: {}", err))?;

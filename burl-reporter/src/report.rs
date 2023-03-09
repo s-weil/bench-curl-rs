@@ -4,7 +4,7 @@ use crate::plots::{
 use crate::{write_baseline_summary_html, write_summary_html};
 use burl::sampling::SampleResult;
 use burl::stats::{StatsProcessor, StatsSummary};
-use burl::{BenchConfig, BurlError, BurlResult, ThreadIdx};
+use burl::{BenchClientConfig, BurlError, BurlResult, ThreadIdx};
 use chrono::{DateTime, Utc};
 use log::{info, warn};
 use serde::Serialize;
@@ -23,7 +23,7 @@ const HIST_PATH: &str = "hist";
 struct ReportMeta {
     start_time: String,
     end_time: String,
-    config: BenchConfig,
+    config: BenchClientConfig,
 }
 
 impl<'a> From<&ReportFactory<'a>> for ReportMeta {
@@ -111,7 +111,7 @@ fn write_or_update<D: Serialize>(serializable_data: &D, file: PathBuf) -> BurlRe
 }
 
 pub struct ReportFactory<'a> {
-    config: &'a BenchConfig,
+    config: &'a BenchClientConfig,
     stats_processor: StatsProcessor,
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
@@ -121,7 +121,7 @@ impl<'a> ReportFactory<'a> {
     pub fn new(
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
-        config: &'a BenchConfig,
+        config: &'a BenchClientConfig,
         stats_processor: StatsProcessor,
     ) -> Self {
         Self {

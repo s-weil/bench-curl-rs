@@ -1,4 +1,4 @@
-use crate::{BenchConfig, BurlError, BurlResult};
+use crate::{BenchClientConfig, BurlError, BurlResult};
 use log::warn;
 use reqwest::{Client, ClientBuilder, RequestBuilder, Result};
 use serde::{Deserialize, Serialize};
@@ -43,7 +43,7 @@ impl RequestFactory {
         Ok(Self { client })
     }
 
-    pub fn assemble_request(&self, config: &BenchConfig) -> BurlResult<RequestBuilder> {
+    pub fn assemble_request(&self, config: &BenchClientConfig) -> BurlResult<RequestBuilder> {
         let mut request = match config.method {
             Method::Get => self.client.get(&config.url),
             Method::Post => {
