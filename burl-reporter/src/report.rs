@@ -8,6 +8,7 @@ use burl::{BenchConfig, BurlError, BurlResult, ThreadIdx};
 use chrono::{DateTime, Utc};
 use log::{info, warn};
 use serde::Serialize;
+use std::ops::Deref;
 use std::{
     collections::HashMap,
     fs,
@@ -262,8 +263,74 @@ impl<'a> ReportFactory<'a> {
 
         Ok(())
     }
-
-    pub fn stats(&self) -> Option<StatsSummary> {
-        self.stats_processor.stats_summary()
-    }
 }
+
+// TODO: rename to Html? and to TableComponent below?
+// pub trait ReportComponent {
+//     type Content;
+//     fn generate(&mut self, content: Self::Content) -> Self;
+//     fn write(&self, file: PathBuf) -> BurlResult<()>;
+// }
+
+// pub trait ComponentWriter {
+//     fn write(&self, file: PathBuf) -> BurlResult<()>;
+// }
+
+// type HtmlTemplate = String;
+// impl<T> ComponentWriter for T
+// where
+//     T: Deref<Target = HtmlTemplate>,
+// {
+//     fn write(&self, file: PathBuf) -> BurlResult<()> {
+//         fs::write(file, &self)?;
+//         Ok(())
+//     }
+// }
+
+// impl<T> ComponentWriter for T
+// where
+//     T::Resource = plotly::Plot,
+// {
+//     type Resource = plotly::Plot;
+//     fn as_resource(&self) -> &plotly::Plot;
+//     fn write(&self, file: PathBuf) -> BurlResult<()> {
+//         self.as_resource().to_html(file);
+//         Ok(())
+//     }
+// }
+
+// pub trait ComponentCreator {
+//     fn init() -> Self;
+//     fn add<Content>(&mut self, content: &Content) -> Self;
+// }
+
+// pub trait ReportComponent: ComponentGenerator + ComponentWriter {}
+
+// type HtmlTemplate = String;
+// trait HtmlComponent: ReportComponent {
+//     fn template(&self) -> HtmlTemplate;
+//     fn write(&self, file: PathBuf) -> BurlResult<()> {
+//         fs::write(file, &self)?;
+//         Ok(())
+//     }
+// }
+
+pub struct SummaryComponent {
+    template_ref: &'static str,
+}
+
+// pub trait PlotlyComponent: ReportComponent {
+//     // fn write(&self, resource: &plotly::Plot, file: PathBuf) -> BurlResult<()> {
+//     //     resource.to_html(file);
+//     //     Ok(())
+//     // }
+//     fn show(&self, content: &plotly::Plot) -> () {
+//         content.show();
+//     }
+
+//     // fn set_layout(&mut self, layout: plotly::Layout) -> Self::Resource;
+// }
+
+// impl ReportComponent for plotly::Plot {
+//     fn generate(&mut self, content: Self::Content) -> Self {}
+// }
