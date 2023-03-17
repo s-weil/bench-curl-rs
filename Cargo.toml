@@ -2,3 +2,9 @@
 members = ["burl", "burl-reporter", "burl-cli"]
 
 # exclude = ["bench-curl-cli"]
+
+[profile.release]
+stripe = true # strip symbols
+opt-level = "s" # size
+lto = true
+codegen-units = 1

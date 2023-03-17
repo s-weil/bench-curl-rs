@@ -1,0 +1,9 @@
+# examples - needed for copying specs.toml
+resources
+target
+Dockerfile
+.dockerignore
+License
+README.md
+.github
+.gitignore
