@@ -69,9 +69,9 @@ RUN apt-get update -y \
 # COPY --from=busybox:1.35.0-uclibc /bin/ls /bin/ls
 
 # for user specific use cases
-RUN mkdir -p ./local
 RUN mkdir -p ./config
+RUN mkdir -p ./data
 COPY /examples/actix/specs.toml ./config
 
 ENTRYPOINT [ "/bin/bash", "-c", "./burl-cli" ]
-# CMD [ "./burl-cli" ]
+CMD [ "help" ]
