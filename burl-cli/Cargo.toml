@@ -9,8 +9,7 @@ repository = "https://github.com/s-weil/burl"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-burl = { path = "../burl" }
-toml = "0.5.9"
+toml = "0.7.2"
 thiserror = "1.0"
 
 tokio = { version = "1.23.0", features = ["full"] }
@@ -21,3 +20,6 @@ log = { version = "0.4.17", feature = ["env_logger"] }
 
 # cli
 clap = { version = "4.0.29", features = ["derive"] }
+
+burl = { path = "../burl" }
+burl-reporter = { path = "../burl-reporter" }

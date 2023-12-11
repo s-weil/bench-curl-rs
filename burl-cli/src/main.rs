@@ -1,10 +1,8 @@
-mod error;
-mod parser;
-
 extern crate clap;
 
-use crate::parser::{from_get_url, parse_toml};
+use burl::parser::{from_get_url, parse_toml};
 use burl::BenchClient;
+// use burl_reporter::
 use clap::{Parser, Subcommand};
 use env_logger::Env;
 use log::{error, info, trace};
@@ -18,10 +16,10 @@ enum BenchRunnerArg {
     /// Read in a `specs.toml` file at the specified location `file_path`.
     FromToml,
     Get,
-    // further: Post, AB testing, etc.
+    // TODO: further: Put, etc
 }
 
-/// CLI to run the benchmarker.
+/// CLI to run the burl benchmarker.
 #[derive(clap::Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct CliArgs {
@@ -36,6 +34,8 @@ struct CliArgs {
     url: Option<String>,
 }
 
+const DEFAULT_TOML: &str = "specs.toml";
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let log_level = std::env::var(LOG_LEVEL).unwrap_or_else(|_| DEFAULT_LEVEL.to_string());
@@ -46,7 +46,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if let Some(specs) = match args.cmd {
         BenchRunnerArg::FromToml => {
             trace!("Parsing TOML");
-            let file_name = args.file_name.unwrap_or_else(|| "specs.toml".to_string());
+            let file_name = args.file_name.unwrap_or_else(|| DEFAULT_TOML.to_string());
 
             let specs = parse_toml(&file_name);
             if specs.is_none() {
@@ -63,13 +63,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     } {
-        trace!("initializing runner with {:?}", &specs);
+        trace!("Initializing runner with {:?}", &specs);
         let bencher = BenchClient::init(&specs)?;
-        if let Some(report) = bencher.start_run().await {
-            if let Some(stats) = &report.stats {
+        if let Some(run_summary) = bencher.run().await {
+            if let Some(stats) = &run_summary.stats() {
                 info!("{}", stats);
             }
-            if let Err(err) = report.create_report() {
+
+            let report_summary = burl_reporter::ReportFactory::new(
+                run_summary.start_time,
+                run_summary.end_time,
+                &specs,
+                run_summary.stats_processor,
+            );
+
+            if let Err(err) = report_summary.create_report() {
                 error!("Report creation failed: {}", err);
             }
         }

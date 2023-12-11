@@ -4,14 +4,14 @@ use super::{
 };
 use crate::{
     config::DurationScale,
-    sampling::{RequestResult, SampleCollector, StatusCode},
+    sampling::{RequestResult, SampleCollector, SampleResult, StatusCode},
     ThreadIdx,
 };
 use log::warn;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Display};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct ThreadStats {
     #[serde(skip_deserializing)]
     #[serde(skip_serializing)] // serialize or not?
@@ -25,7 +25,6 @@ pub struct ThreadStats {
     pub n_errors: usize,
 
     pub total_duration: Option<f64>,
-    // pub mean_rps: Option<f64>,
     pub mean: Option<f64>,
     pub max: Option<f64>,
     pub min: Option<f64>,
@@ -46,12 +45,12 @@ impl From<&SampleCollector> for ThreadStats {
 
         for result in samples.results.iter() {
             match result {
-                RequestResult::Ok(duration_point) => {
-                    sample_results.push(duration_point);
-                    durations.push(duration_point.duration);
-                    max = max.max(duration_point.duration);
-                    min = min.min(duration_point.duration);
-                    if let Some(bytes) = duration_point.content_length {
+                RequestResult::Ok(sample) => {
+                    sample_results.push(sample);
+                    durations.push(sample.duration);
+                    max = max.max(sample.duration);
+                    min = min.min(sample.duration);
+                    if let Some(bytes) = sample.content_length {
                         total_bytes += bytes;
                     }
                     n_ok += 1;
@@ -67,31 +66,104 @@ impl From<&SampleCollector> for ThreadStats {
         }
 
         let n = durations.len();
-        let (total_duration, mean, std, max, min) = if n > 0 {
-            let sum = sum(&durations);
-            let mean = sum / (n as f64);
-            let std = standard_deviation(&durations, mean);
-            (Some(sum), Some(mean), std, Some(max), Some(min))
-        } else {
-            (None, None, None, None, None)
-        };
 
+        if n == 0 {
+            return Self {
+                total_bytes,
+                durations,
+                errors,
+                n_ok,
+                n_errors,
+                ..Self::default()
+            };
+        }
+
+        let sum = sum(&durations);
+        let mean = sum / (n as f64);
+        let std = standard_deviation(&durations, mean);
         Self {
             total_bytes,
             durations,
             errors,
             n_ok,
             n_errors,
-            total_duration,
-            mean,
+            total_duration: Some(sum),
+            mean: Some(mean),
             std,
-            max,
-            min,
+            max: Some(max),
+            min: Some(min),
         }
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+pub struct StatsProcessor {
+    pub scale: DurationScale,
+    sample_collections: Vec<SampleCollector>,
+}
+
+impl StatsProcessor {
+    pub fn new(duration_scale: DurationScale, samples_by_thread: Vec<SampleCollector>) -> Self {
+        Self {
+            scale: duration_scale,
+            sample_collections: samples_by_thread,
+        }
+    }
+
+    pub fn sample_results_by_thread(&self) -> HashMap<ThreadIdx, Vec<SampleResult>> {
+        let sample_results_by_thread = self
+            .sample_collections
+            .iter()
+            .map(|samples| {
+                let sample_results = samples
+                    .results
+                    .iter()
+                    .flat_map(|sr| sr.as_result().cloned())
+                    .collect();
+                (samples.thread_idx, sample_results)
+            })
+            .collect();
+        sample_results_by_thread
+    }
+
+    /// Collect the sample results from the threads' samples.
+    pub fn stats_summary(&self) -> Option<StatsSummary> {
+        let mut durations = Vec::new();
+        let mut stats_by_thread = HashMap::new();
+        let mut total_bytes = 0;
+        let mut n_errors = 0;
+        let mut errors: HashMap<StatusCode, i32> = HashMap::new();
+
+        for samples in self.sample_collections.iter() {
+            let idx = samples.thread_idx;
+            let thread_stats = ThreadStats::from(samples);
+
+            n_errors += thread_stats.n_errors;
+            total_bytes += thread_stats.total_bytes;
+
+            durations.extend(thread_stats.durations.clone());
+
+            for (status_code, n_errors) in thread_stats.errors.iter() {
+                errors
+                    .entry(*status_code)
+                    .and_modify(|count| *count += *n_errors)
+                    .or_insert(*n_errors);
+            }
+
+            stats_by_thread.insert(idx, thread_stats);
+        }
+
+        StatsSummary::calculate(
+            self.scale.clone(),
+            n_errors,
+            total_bytes,
+            durations,
+            errors,
+            stats_by_thread,
+        )
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StatsSummary {
     pub durations: Vec<f64>,
 
@@ -109,18 +181,14 @@ pub struct StatsSummary {
     pub std: Option<f64>,
     pub n_ok: usize,
     pub n_errors: usize,
-
+    // pub qq_percentiles: Vec<(f64, f64)>,
     pub stats_by_thread: HashMap<ThreadIdx, ThreadStats>,
-    /// Percentiles 1% 5% 10% 20% 30% 40% 50% 60% 70% 80% 90% 95% 99%
-    pub qq_percentiles: Vec<(f64, f64)>,
-    // TODO: provide overview of errors - tbd if actually interestering or a corner case
-    // TODO: outliers
-    #[serde(skip_deserializing)]
-    #[serde(skip_serializing)]
-    pub display_percentiles: Vec<(f64, f64)>,
+
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
     pub errors: HashMap<StatusCode, i32>,
+    // TODO: provide overview of errors - tbd if actually interestering or a corner case
+    // TODO: outliers
 }
 
 const N_PERCENTILES: usize = 20;
@@ -134,30 +202,31 @@ impl Display for StatsSummary {
             &self.scale,
             &self.stats_by_thread.len()
         )?;
-        writeln!(f, "Total bytes      | {}", self.total_bytes)?;
-        writeln!(f, "Number ok        | {}", self.n_ok)?;
-        writeln!(f, "Number failed    | {}", self.n_errors)?;
+        writeln!(f, "Total bytes     | {}", self.total_bytes)?;
+        writeln!(f, "Number ok       | {}", self.n_ok)?;
+        writeln!(f, "Number failed   | {}", self.n_errors)?;
         if let Some(rps) = self.mean_rps {
             writeln!(f, "Mean requests/s | {}", rps)?;
         }
 
         writeln!(f, "_______DURATIONS_______________________________")?;
-        writeln!(f, "Total          | {}", self.total_duration)?;
-        writeln!(f, "Mean           | {}", self.mean)?;
+        writeln!(f, "Total        | {}", self.total_duration)?;
+        writeln!(f, "Mean         | {}", self.mean)?;
         // writeln!(f, "Requests per sec | {}", self.mean)?;
 
         if let Some(std) = self.std {
-            writeln!(f, "StdDev         | {}", std)?;
+            writeln!(f, "StdDev       | {}", std)?;
         }
-        writeln!(f, "Min            | {}", self.min)?;
-        writeln!(f, "Quartile 1st   | {}", self.quartile_fst)?;
-        writeln!(f, "Median         | {}", self.median)?;
-        writeln!(f, "Quartile 3rd   | {}", self.quartile_trd)?;
-        writeln!(f, "Max            | {}", self.max)?;
+        writeln!(f, "Min          | {}", self.min)?;
+        writeln!(f, "Quartile 1st | {}", self.quartile_fst)?;
+        writeln!(f, "Median       | {}", self.median)?;
+        writeln!(f, "Quartile 3rd | {}", self.quartile_trd)?;
+        writeln!(f, "Max          | {}", self.max)?;
 
         if self.n_ok >= N_PERCENTILES {
             writeln!(f, "_______PERCENTILES_____________________________")?;
-            for (level, percentile) in self.display_percentiles.iter() {
+            let display_percentiles = self.percentiles(&PERCENTILE_LEVELS);
+            for (level, percentile) in display_percentiles.iter() {
                 writeln!(f, "{}%    {}", level, percentile)?;
             }
         }
@@ -172,11 +241,11 @@ impl Display for StatsSummary {
             };
 
             writeln!(f, "_______THREADS_________________________________")?;
-            writeln!(f, "(Idx : num ok) | total | mean | std | min | max")?;
+            writeln!(f, "[ThreadIdx : num ok] total | mean | std | min | max")?;
             for (thread_idx, thread_stats) in self.stats_by_thread.iter() {
                 writeln!(
                     f,
-                    "({}: {}) | {} | {} | {} | {} | {}",
+                    "[{}: {}] {} | {} | {} | {} | {}",
                     thread_idx,
                     thread_stats.n_ok,
                     format_option(thread_stats.total_duration),
@@ -207,46 +276,6 @@ static PERCENTILE_LEVELS: [f64; 13] = [
 ];
 
 impl StatsSummary {
-    /// Collect the sample results from the threads' samples.
-    pub fn collect(
-        samples_by_thread: &Vec<SampleCollector>,
-        duration_scale: DurationScale,
-    ) -> Option<Self> {
-        let mut durations = Vec::new();
-        let mut stats_by_thread = HashMap::new();
-        let mut total_bytes = 0;
-        let mut n_errors = 0;
-        let mut errors: HashMap<StatusCode, i32> = HashMap::new();
-
-        for samples in samples_by_thread {
-            let idx = samples.thread_idx;
-            let thread_stats = ThreadStats::from(samples);
-
-            n_errors += thread_stats.n_errors;
-            total_bytes += thread_stats.total_bytes;
-
-            durations.extend(thread_stats.durations.clone());
-
-            for (status_code, n_errors) in thread_stats.errors.iter() {
-                errors
-                    .entry(*status_code)
-                    .and_modify(|count| *count += *n_errors)
-                    .or_insert(*n_errors);
-            }
-
-            stats_by_thread.insert(idx, thread_stats);
-        }
-
-        Self::calculate(
-            duration_scale,
-            n_errors,
-            total_bytes,
-            durations,
-            errors,
-            stats_by_thread,
-        )
-    }
-
     pub fn normal_qq_curve(&self) -> Vec<(f64, f64)> {
         if let Some(std) = self.std {
             let np = NormalParams {
@@ -255,10 +284,18 @@ impl StatsSummary {
                 n_samples: self.n_ok,
             };
 
-            normal_qq(&self.qq_percentiles, &np)
+            normal_qq(&self.qq_percentiles(), &np)
         } else {
             Vec::with_capacity(0)
         }
+    }
+
+    fn percentiles(&self, levels: &[f64]) -> Vec<(f64, f64)> {
+        let n = self.durations.len();
+        levels
+            .iter()
+            .map(|level| (level * 100.0, percentile(&self.durations, *level, n as f64)))
+            .collect()
     }
 
     pub fn calculate(
@@ -294,20 +331,20 @@ impl StatsSummary {
         let min = *durations.first().unwrap();
         let max = *durations.last().unwrap();
 
-        let display_percentiles: Vec<(f64, f64)> = PERCENTILE_LEVELS
-            .into_iter()
-            .map(|level| (level * 100.0, percentile(&durations, level, n as f64)))
-            .collect();
+        // let display_percentiles: Vec<(f64, f64)> = PERCENTILE_LEVELS
+        //     .into_iter()
+        //     .map(|level| (level * 100.0, percentile(&durations, level, n as f64)))
+        //     .collect();
 
-        let n_percentiles = durations.len() / 10;
-        let qq_percentiles = (1..n_percentiles)
-            .map(|level| {
-                (
-                    level as f64 * 100.0 / (n_percentiles as f64),
-                    percentile(&durations, level as f64 / (n_percentiles as f64), n as f64),
-                )
-            })
-            .collect();
+        // let n_percentiles = durations.len() / 10;
+        // let qq_percentiles = (1..n_percentiles)
+        //     .map(|level| {
+        //         (
+        //             level as f64 * 100.0 / (n_percentiles as f64),
+        //             percentile(&durations, level as f64 / (n_percentiles as f64), n as f64),
+        //         )
+        //     })
+        //     .collect();
 
         Some(StatsSummary {
             scale,
@@ -326,9 +363,27 @@ impl StatsSummary {
             errors,
             n_ok: n - n_errors,
             stats_by_thread,
-            qq_percentiles,
-            display_percentiles,
+            // qq_percentiles,
         })
+    }
+
+    fn qq_percentiles(&self) -> Vec<(f64, f64)> {
+        let n_percentiles = self.durations.len() / 10;
+        if n_percentiles == 0 {
+            return Vec::with_capacity(0);
+        }
+        (1..n_percentiles)
+            .map(|level| {
+                (
+                    level as f64 * 100.0 / (n_percentiles as f64),
+                    percentile(
+                        &self.durations,
+                        level as f64 / (n_percentiles as f64),
+                        self.durations.len() as f64,
+                    ),
+                )
+            })
+            .collect()
     }
 
     pub fn bootstrap_summary(

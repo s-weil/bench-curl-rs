@@ -138,24 +138,10 @@ impl<'a> BootstrapSampler<'a> {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum PerformanceOutcome {
+pub enum TestOutcome {
     Regressed { p_value: f64 },
     Improved { p_value: f64 },
     Inconclusive,
-}
-
-impl PerformanceOutcome {
-    pub fn to_html(&self) -> String {
-        match self {
-            PerformanceOutcome::Improved { p_value } => {
-                format!("<font color='green'>improved (p-value {})</font>", p_value)
-            }
-            PerformanceOutcome::Regressed { p_value } => {
-                format!("<font color='red'>regressed (p-value {})</font>", p_value)
-            }
-            PerformanceOutcome::Inconclusive => "inconclusive (no significant change)".to_string(),
-        }
-    }
 }
 
 /// We assume:
@@ -210,18 +196,18 @@ impl<'a> AnalyticTester<'a> {
         }
     }
 
-    pub fn test(&self, alpha: Probablity) -> Option<PerformanceOutcome> {
+    pub fn test(&self, alpha: Probablity) -> Option<TestOutcome> {
         let p_value = unsigned_p_value(self.np_baseline, self.np_current)?;
 
         if p_value > alpha {
-            return Some(PerformanceOutcome::Inconclusive);
+            return Some(TestOutcome::Inconclusive);
         }
 
         // case of significant performance change
         if self.np_baseline.mean < self.np_current.mean {
-            Some(PerformanceOutcome::Regressed { p_value })
+            Some(TestOutcome::Regressed { p_value })
         } else {
-            Some(PerformanceOutcome::Improved { p_value })
+            Some(TestOutcome::Improved { p_value })
         }
     }
 }
@@ -308,7 +294,7 @@ impl<'a> PermutationTester<'a> {
         samples
     }
 
-    pub fn test(&self, n_samples: usize, alpha: f64) -> Option<PerformanceOutcome> {
+    pub fn test(&self, n_samples: usize, alpha: f64) -> Option<TestOutcome> {
         if self.baseline_len == 0 || self.current_len == 0 {
             return None;
         }
@@ -333,16 +319,20 @@ impl<'a> PermutationTester<'a> {
         let p_value = n_extreme_diffs as f64 / n_samples as f64;
 
         if p_value > alpha {
-            return Some(PerformanceOutcome::Inconclusive);
+            return Some(TestOutcome::Inconclusive);
         }
 
         // case of significant performance change
         if baseline_mean < current_mean {
-            Some(PerformanceOutcome::Regressed { p_value })
+            Some(TestOutcome::Regressed { p_value })
         } else {
-            Some(PerformanceOutcome::Improved { p_value })
+            Some(TestOutcome::Improved { p_value })
         }
     }
+}
+
+pub trait SignificanceTest {
+    fn test(&self, alpha: Probablity) -> Option<TestOutcome>;
 }
 
 #[cfg(test)]
@@ -458,13 +448,13 @@ mod tests {
 
         let perf_outcome = super::AnalyticTester::new(&np_base, &np_new).test(0.005);
         assert!(perf_outcome.is_some());
-        assert_eq!(perf_outcome.unwrap(), PerformanceOutcome::Inconclusive);
+        assert_eq!(perf_outcome.unwrap(), TestOutcome::Inconclusive);
 
         let perf_outcome = super::AnalyticTester::new(&np_base, &np_new).test(0.01);
         assert!(perf_outcome.is_some());
         assert_eq!(
             perf_outcome.unwrap(),
-            PerformanceOutcome::Improved {
+            TestOutcome::Improved {
                 p_value: 0.009109785650170843
             }
         );
@@ -473,7 +463,7 @@ mod tests {
         assert!(perf_outcome.is_some());
         assert_eq!(
             perf_outcome.unwrap(),
-            PerformanceOutcome::Regressed {
+            TestOutcome::Regressed {
                 p_value: 0.009109785650170843
             }
         );
@@ -512,23 +502,20 @@ mod tests {
 
         let current_samples: Vec<f64> = vec![10.5, 10.5, 10.5, 9.5, 9.5, 9.5];
         let p_test = PermutationTester::new(&current_samples, &baseline_samples);
-        assert_eq!(
-            p_test.test(1000, 0.1),
-            Some(PerformanceOutcome::Inconclusive)
-        );
+        assert_eq!(p_test.test(1000, 0.1), Some(TestOutcome::Inconclusive));
 
         let current_samples: Vec<f64> = vec![11.5, 11.5, 11.5, 11.0, 10.0, 9.5];
         let p_test = PermutationTester::new(&current_samples, &baseline_samples);
         assert_eq!(
             p_test.test(1000, 0.1),
-            Some(PerformanceOutcome::Regressed { p_value: 0.008 })
+            Some(TestOutcome::Regressed { p_value: 0.008 })
         );
 
         let current_samples: Vec<f64> = vec![10.5, 10.0, 9.5, 9.0, 8.5, 8.5, 8.5];
         let p_test = PermutationTester::new(&current_samples, &baseline_samples);
         assert_eq!(
             p_test.test(1000, 0.1),
-            Some(PerformanceOutcome::Improved { p_value: 0.013 })
+            Some(TestOutcome::Improved { p_value: 0.013 })
         );
     }
 }

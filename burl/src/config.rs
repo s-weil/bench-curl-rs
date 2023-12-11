@@ -58,9 +58,20 @@ pub struct StatsConfig {
 
 const ALPHA: f64 = 0.05;
 
+impl Default for StatsConfig {
+    fn default() -> Self {
+        Self {
+            alpha: Some(ALPHA),
+            n_bootstrap_samples: Some(1_000),
+            n_bootstrap_draw_size: Some(100),
+        }
+    }
+}
+
 // TODO: structure into sub types
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
-pub struct BenchConfig {
+pub struct BenchClientConfig {
+    // request part
     pub url: String,
     pub method: Method,
     #[serde(alias = "disableCertificateValidation")]
@@ -78,6 +89,7 @@ pub struct BenchConfig {
     #[serde(alias = "bearerToken")]
     pub bearer_token: Option<String>,
 
+    // Benchmarking
     #[serde(alias = "durationScale")]
     duration_scale: Option<DurationScale>,
 
@@ -87,10 +99,10 @@ pub struct BenchConfig {
     #[serde(alias = "numberWarmupRuns")]
     #[serde(alias = "nWarmupRuns")]
     n_warmup_runs: Option<usize>,
-
     #[serde(alias = "concurrencyLevel")]
     concurrency_level: Option<usize>,
 
+    // Stats / reports
     #[serde(alias = "reportDirectory")]
     pub report_directory: Option<String>,
     #[serde(alias = "baselinePath")]
@@ -107,7 +119,7 @@ pub struct BenchConfig {
 
 const DEFAULT_NRUNS: usize = 300;
 
-impl BenchConfig {
+impl BenchClientConfig {
     pub fn new(url: String) -> Self {
         Self {
             url,
@@ -166,4 +178,12 @@ impl BenchConfig {
             .and_then(|scfg| scfg.n_bootstrap_samples)
             .unwrap_or(1_000)
     }
+
+    // pub fn stats_config(&self) -> StatsConfig {
+    //     StatsConfig {
+    //         alpha: self.alpha(),
+    //         n_bootstrap_samples: self.n_bootstrap_samples(),
+    //         n_bootstrap_draw_size: self.n_bootstrap_draw_size(),
+    //     }
+    // }
 }

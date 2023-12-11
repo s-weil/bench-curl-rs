@@ -43,6 +43,7 @@ Find sample reports for
     * confidence interval
     * analyze outliers
     * bivariate metrics for comparison of runs
+    * iterative runs and plots with iterations vs percentiles (showing how api behaves under different loads)
 * reuse connections / persistence, see e.g. https://twitter.com/mlafeldt/status/1437411223948103683 or https://users.rust-lang.org/t/hyper-reqwest-connection-not-being-kept-alive/10895/5
 * -> support jupyter notebooks! via python api
 * support via UI / wasm / etc / run with docker?
@@ -53,5 +54,4 @@ Find sample reports for
 * kaleido support? https://github.com/igiagkiozis/plotly#exporting-an-interactive-plot
 * wasm support? https://github.com/igiagkiozis/plotly#exporting-an-interactive-plot
 * add request_id to request, so that it can be traced back potentially? tbd: could be responsibility of user
-* add lib error
-* platform builds, incl docker
+* platform builds
